@@ -55,7 +55,7 @@ class RealtorProfileCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = RealtorProfile
         fields = [
-            'company_name', 'phone_number', 'whatsapp_link',
+            'company_name', 'company_location', 'phone_number', 'whatsapp_link',
             'bio', 'profile_picture',
         ]
 

@@ -139,3 +139,22 @@ class CompleteProfileView(generics.UpdateAPIView):
             },
             status=status.HTTP_200_OK,
         )
+class UpgradeToRealtorView(APIView):
+    """
+    POST /api/v1/auth/upgrade-to-realtor/
+    Upgrades a buyer account to a realtor account so they can list properties.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        if user.role == 'realtor':
+            return Response({'message': 'Account is already a realtor.'}, status=status.HTTP_200_OK)
+        if user.role not in ('buyer',):
+            return Response({'error': 'Only buyer accounts can be upgraded.'}, status=status.HTTP_400_BAD_REQUEST)
+        user.role = 'realtor'
+        user.save(update_fields=['role'])
+        return Response({
+            'message': 'Account upgraded to realtor successfully! You can now list properties.',
+            'user': UserSerializer(user).data,
+        }, status=status.HTTP_200_OK)

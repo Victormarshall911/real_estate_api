@@ -16,4 +16,5 @@ urlpatterns = [
     path('verify-email/', views.EmailVerifyView.as_view(), name='verify_email'),
     path('profile/', views.UserProfileView.as_view(), name='profile'),
     path('complete-profile/', views.CompleteProfileView.as_view(), name='complete_profile'),
+    path('upgrade-to-realtor/', views.UpgradeToRealtorView.as_view(), name='upgrade_to_realtor'),
 ]
