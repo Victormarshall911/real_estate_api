@@ -75,6 +75,27 @@ class AgentProfileViewSet(viewsets.ModelViewSet):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
+    def remove_location(self, request, pk=None):
+        """Remove a specific location pricing from this agent."""
+        agent = self.get_object()
+        
+        # Only the agent themselves can remove locations
+        if agent.user != request.user:
+            return Response({"error": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
+            
+        location_id = request.data.get('location_id')
+        if not location_id:
+            return Response({"error": "location_id is required."}, status=status.HTTP_400_BAD_REQUEST)
+            
+        try:
+            location = AgentLocationPricing.objects.get(id=location_id, agent=agent)
+            location.delete()
+            return Response({"message": "Location removed successfully."}, status=status.HTTP_200_OK)
+        except AgentLocationPricing.DoesNotExist:
+            return Response({"error": "Location not found."}, status=status.HTTP_404_NOT_FOUND)
+
+
 
 class AgentConnectionViewSet(viewsets.ReadOnlyModelViewSet):
     """
