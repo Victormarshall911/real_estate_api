@@ -11,7 +11,7 @@ from django.db import models
 from realtors.models import RealtorProfile
 
 
-from cloudinary_storage.storage import VideoMediaCloudinaryStorage
+
 
 class PropertyListing(models.Model):
     """
