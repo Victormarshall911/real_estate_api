@@ -92,7 +92,6 @@ class PropertyListing(models.Model):
     )
     video = models.FileField(
         upload_to='properties/videos/',
-        storage=VideoMediaCloudinaryStorage(),
         null=True,
         blank=True,
         help_text='Optional promotional video for the property.'
