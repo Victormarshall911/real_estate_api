@@ -95,6 +95,30 @@ class AgentProfileViewSet(viewsets.ModelViewSet):
         except AgentLocationPricing.DoesNotExist:
             return Response({"error": "Location not found."}, status=status.HTTP_404_NOT_FOUND)
 
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
+    def rate(self, request, pk=None):
+        """Rate an agent."""
+        agent = self.get_object()
+        
+        # Check if user has an active/completed connection with this agent
+        # For now we just allow any authenticated user to rate (simplified for mockup)
+        
+        rating = request.data.get('rating')
+        comment = request.data.get('comment', '')
+        
+        if not rating or not isinstance(rating, int) or not (1 <= rating <= 5):
+            return Response({"error": "Valid rating between 1 and 5 is required."}, status=status.HTTP_400_BAD_REQUEST)
+            
+        from .models import AgentReview
+        from .serializers import AgentReviewSerializer
+        
+        review, created = AgentReview.objects.update_or_create(
+            agent=agent,
+            user=request.user,
+            defaults={'rating': rating, 'comment': comment}
+        )
+        
+        return Response(AgentReviewSerializer(review).data, status=status.HTTP_200_OK if not created else status.HTTP_201_CREATED)
 
 
 class AgentConnectionViewSet(viewsets.ReadOnlyModelViewSet):
@@ -129,8 +153,24 @@ class AgentConnectionViewSet(viewsets.ReadOnlyModelViewSet):
         if existing:
             return Response({"error": "You already have an active connection with this agent."}, status=status.HTTP_400_BAD_REQUEST)
             
-        # In a full implementation, we would create a PaystackPayment here
-        # For now, we mock the payment creation and just return a success payload
+        # Check wallet balance and deduct
+        from apps.wallets.models import Wallet, WalletTransaction
+        wallet, _ = Wallet.objects.get_or_create(user=request.user)
+        fee = location.connection_fee
+        
+        if wallet.balance < fee:
+            return Response({"error": "Insufficient wallet balance. Please deposit funds."}, status=status.HTTP_400_BAD_REQUEST)
+            
+        wallet.balance -= fee
+        wallet.save()
+        
+        WalletTransaction.objects.create(
+            wallet=wallet,
+            transaction_type='payment',
+            amount=fee,
+            reference=f"escrow_agent_{agent.id}_{uuid.uuid4().hex[:8]}",
+            description=f"Connection fee held in escrow for {agent.user.first_name}"
+        )
         
         connection = AgentConnection.objects.create(
             user=request.user,
@@ -147,9 +187,46 @@ class AgentConnectionViewSet(viewsets.ReadOnlyModelViewSet):
         
         return Response(
             {
-                "message": "Connection established successfully.",
+                "message": "Connection established. Funds held in escrow.",
                 "connection": AgentConnectionSerializer(connection).data,
                 "chat_session_id": str(chat_session.id)
             }, 
             status=status.HTTP_201_CREATED
         )
+
+    @action(detail=True, methods=['post'])
+    def complete_deal(self, request, pk=None):
+        """Mark connection as completed by either party."""
+        connection = self.get_object()
+        
+        if connection.status != 'active':
+            return Response({"error": "Connection is not active."}, status=status.HTTP_400_BAD_REQUEST)
+            
+        if request.user == connection.user:
+            connection.buyer_completed = True
+        elif hasattr(request.user, 'agent_profile') and request.user.agent_profile == connection.agent:
+            connection.agent_completed = True
+        else:
+            return Response({"error": "Unauthorized."}, status=status.HTTP_403_FORBIDDEN)
+            
+        if connection.buyer_completed and connection.agent_completed:
+            connection.status = 'closed'
+            
+            # Release funds to agent's wallet
+            from apps.wallets.models import Wallet, WalletTransaction
+            agent_wallet, _ = Wallet.objects.get_or_create(user=connection.agent.user)
+            fee = connection.location_pricing.connection_fee
+            
+            agent_wallet.balance += fee
+            agent_wallet.save()
+            
+            WalletTransaction.objects.create(
+                wallet=agent_wallet,
+                transaction_type='receipt',
+                amount=fee,
+                reference=f"release_agent_{connection.id}_{uuid.uuid4().hex[:8]}",
+                description=f"Escrow released for connection with {connection.user.first_name}"
+            )
+            
+        connection.save()
+        return Response({"message": "Status updated.", "status": connection.status})

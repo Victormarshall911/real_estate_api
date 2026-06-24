@@ -79,7 +79,7 @@ class AgentConnection(models.Model):
     class Status(models.TextChoices):
         PENDING = 'pending', 'Pending Payment'
         ACTIVE = 'active', 'Active'
-        COMPLETED = 'completed', 'Completed'
+        CLOSED = 'closed', 'Closed (Escrow Released)'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(
@@ -113,6 +113,12 @@ class AgentConnection(models.Model):
         null=True, blank=True,
         help_text='Optional expiration date for the connection.',
     )
+    buyer_completed = models.BooleanField(
+        default=False, help_text="Buyer accepted that the transaction is completed."
+    )
+    agent_completed = models.BooleanField(
+        default=False, help_text="Agent accepted that the transaction is completed."
+    )
 
     class Meta:
         db_table = 'agent_connections'
@@ -121,3 +127,36 @@ class AgentConnection(models.Model):
 
     def __str__(self):
         return f'{self.user.full_name} ↔ {self.agent.user.full_name} ({self.status})'
+
+
+class AgentReview(models.Model):
+    """
+    Review and rating for an agent left by a user after a connection.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    agent = models.ForeignKey(
+        AgentProfile,
+        on_delete=models.CASCADE,
+        related_name='reviews'
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='agent_reviews_left'
+    )
+    rating = models.PositiveSmallIntegerField(
+        choices=[(i, i) for i in range(1, 6)],
+        help_text='Rating from 1 to 5'
+    )
+    comment = models.TextField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'agent_reviews'
+        ordering = ['-created_at']
+        unique_together = ('agent', 'user')
+
+    def __str__(self):
+        return f'{self.rating} Stars for {self.agent.user.email} by {self.user.email if self.user else "Deleted User"}'
+

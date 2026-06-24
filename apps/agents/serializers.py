@@ -2,8 +2,16 @@
 Serializers for Agent profiles, pricing, and connections.
 """
 from rest_framework import serializers
-from .models import AgentProfile, AgentLocationPricing, AgentConnection
+from .models import AgentProfile, AgentLocationPricing, AgentConnection, AgentReview
 from accounts.serializers import UserSerializer
+
+class AgentReviewSerializer(serializers.ModelSerializer):
+    user_name = serializers.CharField(source='user.full_name', read_only=True)
+
+    class Meta:
+        model = AgentReview
+        fields = ['id', 'user_name', 'rating', 'comment', 'created_at']
+        read_only_fields = ['id', 'user_name', 'created_at']
 
 
 class AgentLocationPricingSerializer(serializers.ModelSerializer):
@@ -19,6 +27,8 @@ class AgentProfileSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
     location_prices = AgentLocationPricingSerializer(many=True, read_only=True)
     profile_picture_url = serializers.SerializerMethodField()
+    average_rating = serializers.SerializerMethodField()
+    total_reviews = serializers.SerializerMethodField()
 
     class Meta:
         model = AgentProfile
@@ -26,6 +36,7 @@ class AgentProfileSerializer(serializers.ModelSerializer):
             'id', 'user', 'company_name', 'company_location', 'bio',
             'phone_number', 'whatsapp_link', 'profile_picture_url',
             'is_verified', 'total_connections', 'location_prices', 'created_at',
+            'average_rating', 'total_reviews',
         ]
 
     def get_profile_picture_url(self, obj):
@@ -36,6 +47,15 @@ class AgentProfileSerializer(serializers.ModelSerializer):
             return obj.profile_picture.url
         return None
 
+    def get_average_rating(self, obj):
+        reviews = obj.reviews.all()
+        if not reviews:
+            return 0.0
+        return round(sum(r.rating for r in reviews) / len(reviews), 1)
+
+    def get_total_reviews(self, obj):
+        return obj.reviews.count()
+
 
 class AgentProfileCreateUpdateSerializer(serializers.ModelSerializer):
     """Serializer for creating/updating an agent profile."""
@@ -43,9 +63,10 @@ class AgentProfileCreateUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = AgentProfile
         fields = [
-            'company_name', 'company_location', 'bio',
+            'id', 'company_name', 'company_location', 'bio',
             'phone_number', 'whatsapp_link', 'profile_picture',
         ]
+        read_only_fields = ['id']
 
     def create(self, validated_data):
         request = self.context.get('request')

@@ -12,4 +12,5 @@ urlpatterns = [
     path('profile/', views.RealtorProfileCreateView.as_view(), name='realtor_create'),
     path('profile/update/', views.RealtorProfileUpdateView.as_view(), name='realtor_update'),
     path('<uuid:id>/', views.RealtorProfileDetailView.as_view(), name='realtor_detail'),
+    path('<uuid:id>/rate/', views.RealtorRateView.as_view(), name='realtor_rate'),
 ]

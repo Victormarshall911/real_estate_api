@@ -91,3 +91,36 @@ class RealtorProfile(models.Model):
             return self.whatsapp_link
         phone = self.whatsapp_link.lstrip('+')
         return f'https://wa.me/{phone}'
+
+
+class RealtorReview(models.Model):
+    """
+    Review and rating for a realtor left by a buyer after a transaction.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    realtor = models.ForeignKey(
+        RealtorProfile,
+        on_delete=models.CASCADE,
+        related_name='reviews'
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='realtor_reviews_left'
+    )
+    rating = models.PositiveSmallIntegerField(
+        choices=[(i, i) for i in range(1, 6)],
+        help_text='Rating from 1 to 5'
+    )
+    comment = models.TextField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'realtor_reviews'
+        ordering = ['-created_at']
+        unique_together = ('realtor', 'user')
+
+    def __str__(self):
+        return f'{self.rating} Stars for {self.realtor.user.email} by {self.user.email if self.user else "Deleted User"}'
+

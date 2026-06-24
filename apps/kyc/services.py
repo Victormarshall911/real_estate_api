@@ -43,7 +43,7 @@ class DojahService:
         Returns dict with 'success' bool and 'data' or 'error'.
         """
         if not self._is_configured():
-            return self._mock_success('bvn', bvn)
+            return {'success': False, 'error': 'KYC service is not configured. Live API keys are required.'}
 
         try:
             response = requests.get(
@@ -69,7 +69,7 @@ class DojahService:
         Returns dict with 'success' bool and 'data' or 'error'.
         """
         if not self._is_configured():
-            return self._mock_success('nin', nin)
+            return {'success': False, 'error': 'KYC service is not configured. Live API keys are required.'}
 
         try:
             response = requests.get(

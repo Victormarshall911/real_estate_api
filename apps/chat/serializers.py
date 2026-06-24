@@ -26,12 +26,19 @@ class ChatMessageSerializer(serializers.ModelSerializer):
 class ChatSessionSerializer(serializers.ModelSerializer):
     client = CustomUserSerializer(source='connection.user', read_only=True)
     agent = AgentProfileSerializer(source='connection.agent', read_only=True)
+    connection_status = serializers.CharField(source='connection.status', read_only=True)
+    connection_buyer_completed = serializers.BooleanField(source='connection.buyer_completed', read_only=True)
+    connection_agent_completed = serializers.BooleanField(source='connection.agent_completed', read_only=True)
     last_message = serializers.SerializerMethodField()
     unread_count = serializers.SerializerMethodField()
 
     class Meta:
         model = ChatSession
-        fields = ['id', 'connection', 'client', 'agent', 'created_at', 'updated_at', 'is_active', 'last_message', 'unread_count']
+        fields = [
+            'id', 'connection', 'client', 'agent', 'connection_status', 
+            'connection_buyer_completed', 'connection_agent_completed',
+            'created_at', 'updated_at', 'is_active', 'last_message', 'unread_count'
+        ]
 
     def get_last_message(self, obj):
         last_msg = obj.messages.order_by('-created_at').first()

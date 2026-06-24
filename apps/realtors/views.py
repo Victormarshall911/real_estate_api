@@ -63,3 +63,32 @@ class RealtorProfileUpdateView(generics.UpdateAPIView):
 
     def get_object(self):
         return self.request.user.realtor_profile
+
+from rest_framework.views import APIView
+from django.shortcuts import get_object_or_404
+
+class RealtorRateView(APIView):
+    """
+    POST /api/v1/realtors/<id>/rate/
+    Allow authenticated users to rate a realtor.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, id):
+        realtor = get_object_or_404(RealtorProfile, id=id)
+        rating = request.data.get('rating')
+        comment = request.data.get('comment', '')
+
+        if not rating or not isinstance(rating, int) or not (1 <= rating <= 5):
+            return Response({"error": "Valid rating between 1 and 5 is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        from .models import RealtorReview
+        from .serializers import RealtorReviewSerializer
+
+        review, created = RealtorReview.objects.update_or_create(
+            realtor=realtor,
+            user=request.user,
+            defaults={'rating': rating, 'comment': comment}
+        )
+
+        return Response(RealtorReviewSerializer(review).data, status=status.HTTP_200_OK if not created else status.HTTP_201_CREATED)
