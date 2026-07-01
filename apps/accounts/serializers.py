@@ -15,6 +15,7 @@ class UserSerializer(serializers.ModelSerializer):
     has_realtor_profile = serializers.SerializerMethodField()
     has_agent_profile = serializers.SerializerMethodField()
     is_fully_verified = serializers.BooleanField(read_only=True)
+    profile_photo = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -31,6 +32,17 @@ class UserSerializer(serializers.ModelSerializer):
 
     def get_has_agent_profile(self, obj):
         return hasattr(obj, 'agent_profile')
+
+    def get_profile_photo(self, obj):
+        if obj.profile_photo:
+            url = obj.profile_photo.url
+            if url.startswith('http'):
+                return url
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(url)
+            return f"https://real-estate-api-orbx.onrender.com{url}"
+        return None
 
 
 class UserUpdateSerializer(serializers.ModelSerializer):

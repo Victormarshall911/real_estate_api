@@ -21,11 +21,23 @@ class ArchitectReviewSerializer(serializers.ModelSerializer):
 
 class ArchitectUserSerializer(serializers.ModelSerializer):
     """Lightweight user data nested inside architect serializer."""
+    profile_photo = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = ['id', 'email', 'first_name', 'last_name', 'is_email_verified', 'profile_photo']
         read_only_fields = fields
+
+    def get_profile_photo(self, obj):
+        if obj.profile_photo:
+            url = obj.profile_photo.url
+            if url.startswith('http'):
+                return url
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(url)
+            return f"https://real-estate-api-orbx.onrender.com{url}"
+        return None
 
 
 class ArchitectProfileSerializer(serializers.ModelSerializer):
