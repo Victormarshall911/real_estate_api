@@ -206,9 +206,17 @@ SIMPLE_JWT = {
 # ──────────────────────────────────────────────
 # CORS Configuration
 # ──────────────────────────────────────────────
+# Allow all Vercel preview URLs (any subdomain) + localhost for development
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r'^https://.*\.vercel\.app$',
+    r'^http://localhost:\d+$',
+    r'^http://127\.0\.0\.1:\d+$',
+]
+# Explicit named production origins (fallback)
 CORS_ALLOWED_ORIGINS = env.list('CORS_ALLOWED_ORIGINS', default=[
     'http://localhost:5173',
     'http://127.0.0.1:5173',
+    'https://real-estate-delta-orcin.vercel.app',
 ])
 CORS_ALLOW_CREDENTIALS = True
 
