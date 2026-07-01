@@ -22,7 +22,7 @@ class UserSerializer(serializers.ModelSerializer):
             'id', 'email', 'first_name', 'last_name', 'full_name',
             'role', 'is_email_verified', 'date_joined',
             'has_realtor_profile', 'has_agent_profile', 'is_kyc_verified', 'is_profile_complete',
-            'is_fully_verified', 'date_of_birth', 'full_address',
+            'is_fully_verified', 'date_of_birth', 'full_address', 'profile_photo',
         ]
         read_only_fields = fields
 
