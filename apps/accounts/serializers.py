@@ -33,6 +33,13 @@ class UserSerializer(serializers.ModelSerializer):
         return hasattr(obj, 'agent_profile')
 
 
+class UserUpdateSerializer(serializers.ModelSerializer):
+    """Serializer for updating user personal account information."""
+    class Meta:
+        model = User
+        fields = ['first_name', 'last_name', 'date_of_birth', 'full_address', 'profile_photo']
+
+
 class CompleteProfileSerializer(serializers.ModelSerializer):
     """Serializer for the profile completion step (address, DOB, photo)."""
 

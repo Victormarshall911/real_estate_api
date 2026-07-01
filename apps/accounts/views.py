@@ -9,7 +9,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView
 
-from .serializers import RegisterSerializer, UserSerializer, EmailVerifySerializer, CompleteProfileSerializer
+from .serializers import RegisterSerializer, UserSerializer, EmailVerifySerializer, CompleteProfileSerializer, UserUpdateSerializer
 
 User = get_user_model()
 
@@ -102,13 +102,17 @@ class LoginView(TokenObtainPairView):
     throttle_scope = 'anon'
 
 
-class UserProfileView(generics.RetrieveAPIView):
+class UserProfileView(generics.RetrieveUpdateAPIView):
     """
-    GET /api/v1/auth/profile/
-    Returns the authenticated user's profile data.
+    GET/PUT/PATCH /api/v1/auth/profile/
+    Returns or updates the authenticated user's profile data.
     """
-    serializer_class = UserSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    def get_serializer_class(self):
+        if self.request.method in ['PUT', 'PATCH']:
+            return UserUpdateSerializer
+        return UserSerializer
 
     def get_object(self):
         return self.request.user
