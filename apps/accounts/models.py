@@ -19,6 +19,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         BUYER = 'buyer', 'Buyer'
         REALTOR = 'realtor', 'Realtor'
         AGENT = 'agent', 'Agent'
+        ARCHITECT = 'architect', 'Architect'
         ADMIN = 'admin', 'Admin'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

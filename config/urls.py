@@ -18,6 +18,7 @@ urlpatterns = [
     path('api/v1/agents/', include('agents.urls')),
     path('api/v1/subscriptions/', include('subscriptions.urls')),
     path('api/v1/wallets/', include('apps.wallets.urls')),
+    path('api/v1/architects/', include('architects.urls')),
 ]
 
 if settings.DEBUG:
