@@ -38,10 +38,13 @@ class CompleteProfileSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ['date_of_birth', 'full_address', 'profile_photo']
+        fields = ['date_of_birth', 'full_address', 'profile_photo', 'is_profile_complete']
 
     def validate(self, attrs):
-        """Ensure at minimum DOB and address are provided."""
+        """Ensure at minimum DOB and address are provided for standard buyers/realtors."""
+        if self.instance.role in ['architect', 'agent'] or attrs.get('is_profile_complete') is True:
+            return attrs
+
         if not attrs.get('date_of_birth') and not self.instance.date_of_birth:
             raise serializers.ValidationError(
                 {'date_of_birth': 'Date of birth is required to complete your profile.'}
@@ -56,10 +59,10 @@ class CompleteProfileSerializer(serializers.ModelSerializer):
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
 
-        # Mark profile as complete if DOB and address are both set
+        # Mark profile as complete if DOB and address are both set or if explicitly set
         dob = validated_data.get('date_of_birth', instance.date_of_birth)
         addr = validated_data.get('full_address', instance.full_address)
-        if dob and addr:
+        if (dob and addr) or validated_data.get('is_profile_complete'):
             instance.is_profile_complete = True
 
         instance.save()

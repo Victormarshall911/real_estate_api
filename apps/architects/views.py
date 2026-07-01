@@ -60,6 +60,9 @@ class ArchitectProfileViewSet(viewsets.ModelViewSet):
             serializer = self.get_serializer(profile, data=request.data, partial=True)
             serializer.is_valid(raise_exception=True)
             serializer.save()
+            if not request.user.is_profile_complete:
+                request.user.is_profile_complete = True
+                request.user.save(update_fields=['is_profile_complete'])
             return Response(serializer.data, status=status.HTTP_200_OK if not created else status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
