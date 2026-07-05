@@ -17,8 +17,9 @@ urlpatterns = [
     path('api/v1/kyc/', include('kyc.urls')),
     path('api/v1/agents/', include('agents.urls')),
     path('api/v1/subscriptions/', include('subscriptions.urls')),
-    path('api/v1/wallets/', include('apps.wallets.urls')),
+    path('api/v1/wallets/', include('wallets.urls')),
     path('api/v1/architects/', include('architects.urls')),
+    path('api/v1/chat/', include('chat.urls')),
 ]
 
 if settings.DEBUG:

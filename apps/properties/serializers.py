@@ -4,6 +4,7 @@ Provides lightweight list serializer and detailed serializer with nested relatio
 """
 from rest_framework import serializers
 
+from accounts.utils import get_clean_media_url
 from realtors.serializers import RealtorProfileSerializer
 from .models import PropertyListing, PropertyImage
 
@@ -19,12 +20,7 @@ class PropertyImageSerializer(serializers.ModelSerializer):
 
     def get_image_url(self, obj):
         """Return the full absolute URL."""
-        if obj.image:
-            request = self.context.get('request')
-            if request:
-                return request.build_absolute_uri(obj.image.url)
-            return obj.image.url
-        return None
+        return get_clean_media_url(obj.image, self.context.get('request'))
 
 
 class PropertyImageUploadSerializer(serializers.ModelSerializer):
@@ -64,13 +60,7 @@ class PropertyListSerializer(serializers.ModelSerializer):
         return obj.images.count()
 
     def get_primary_image_url(self, obj):
-        url = obj.primary_image_url
-        if url:
-            request = self.context.get('request')
-            if request:
-                return request.build_absolute_uri(url)
-            return url
-        return None
+        return get_clean_media_url(obj.primary_image_url, self.context.get('request'))
 
 
 class PropertyDetailSerializer(serializers.ModelSerializer):
@@ -94,13 +84,7 @@ class PropertyDetailSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'view_count', 'created_at', 'updated_at']
 
     def get_primary_image_url(self, obj):
-        url = obj.primary_image_url
-        if url:
-            request = self.context.get('request')
-            if request:
-                return request.build_absolute_uri(url)
-            return url
-        return None
+        return get_clean_media_url(obj.primary_image_url, self.context.get('request'))
 
 
 class PropertyCreateSerializer(serializers.ModelSerializer):

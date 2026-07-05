@@ -60,7 +60,7 @@ LOCAL_APPS = [
     'agents',
     'subscriptions',
     'chat',
-    'apps.wallets',
+    'wallets',
     'architects',
 ]
 

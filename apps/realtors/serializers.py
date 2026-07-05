@@ -4,6 +4,7 @@ Serializers for Realtor Profile CRUD and display.
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
+from accounts.utils import get_clean_media_url
 from .models import RealtorProfile, RealtorReview
 
 User = get_user_model()
@@ -27,15 +28,7 @@ class RealtorUserSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
     def get_profile_photo(self, obj):
-        if obj.profile_photo:
-            url = obj.profile_photo.url
-            if url.startswith('http'):
-                return url
-            request = self.context.get('request')
-            if request:
-                return request.build_absolute_uri(url)
-            return f"https://real-estate-api-orbx.onrender.com{url}"
-        return None
+        return get_clean_media_url(obj.profile_photo, self.context.get('request'))
 
 
 class RealtorProfileSerializer(serializers.ModelSerializer):
@@ -62,13 +55,7 @@ class RealtorProfileSerializer(serializers.ModelSerializer):
         return obj.properties.filter(status='available').count()
 
     def get_profile_picture_url(self, obj):
-        url = obj.profile_picture_url
-        if url:
-            request = self.context.get('request')
-            if request:
-                return request.build_absolute_uri(url)
-            return url
-        return None
+        return get_clean_media_url(obj.profile_picture, self.context.get('request'))
 
     def get_average_rating(self, obj):
         reviews = obj.reviews.all()

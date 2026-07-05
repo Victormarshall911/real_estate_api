@@ -5,6 +5,7 @@ from django.contrib.auth import get_user_model
 from django.db.models import Avg
 from rest_framework import serializers
 
+from accounts.utils import get_clean_media_url
 from .models import ArchitectProfile, ArchitectReview
 
 User = get_user_model()
@@ -29,15 +30,7 @@ class ArchitectUserSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
     def get_profile_photo(self, obj):
-        if obj.profile_photo:
-            url = obj.profile_photo.url
-            if url.startswith('http'):
-                return url
-            request = self.context.get('request')
-            if request:
-                return request.build_absolute_uri(url)
-            return f"https://real-estate-api-orbx.onrender.com{url}"
-        return None
+        return get_clean_media_url(obj.profile_photo, self.context.get('request'))
 
 
 class ArchitectProfileSerializer(serializers.ModelSerializer):
@@ -59,12 +52,7 @@ class ArchitectProfileSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'user', 'is_verified', 'created_at', 'updated_at', 'average_rating', 'total_reviews']
 
     def get_profile_picture_url(self, obj):
-        if obj.profile_picture:
-            request = self.context.get('request')
-            if request:
-                return request.build_absolute_uri(obj.profile_picture.url)
-            return obj.profile_picture.url
-        return None
+        return get_clean_media_url(obj.profile_picture, self.context.get('request'))
 
     def get_formatted_whatsapp_url(self, obj):
         if obj.whatsapp_link:

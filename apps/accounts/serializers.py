@@ -6,6 +6,8 @@ from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from .utils import get_clean_media_url
+
 User = get_user_model()
 
 
@@ -34,15 +36,7 @@ class UserSerializer(serializers.ModelSerializer):
         return hasattr(obj, 'agent_profile')
 
     def get_profile_photo(self, obj):
-        if obj.profile_photo:
-            url = obj.profile_photo.url
-            if url.startswith('http'):
-                return url
-            request = self.context.get('request')
-            if request:
-                return request.build_absolute_uri(url)
-            return f"https://real-estate-api-orbx.onrender.com{url}"
-        return None
+        return get_clean_media_url(obj.profile_photo, self.context.get('request'))
 
 
 class UserUpdateSerializer(serializers.ModelSerializer):

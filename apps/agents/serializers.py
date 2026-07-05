@@ -2,6 +2,8 @@
 Serializers for Agent profiles, pricing, and connections.
 """
 from rest_framework import serializers
+
+from accounts.utils import get_clean_media_url
 from .models import AgentProfile, AgentLocationPricing, AgentConnection, AgentReview
 from accounts.serializers import UserSerializer
 
@@ -40,12 +42,7 @@ class AgentProfileSerializer(serializers.ModelSerializer):
         ]
 
     def get_profile_picture_url(self, obj):
-        if obj.profile_picture:
-            request = self.context.get('request')
-            if request:
-                return request.build_absolute_uri(obj.profile_picture.url)
-            return obj.profile_picture.url
-        return None
+        return get_clean_media_url(obj.profile_picture, self.context.get('request'))
 
     def get_average_rating(self, obj):
         reviews = obj.reviews.all()
