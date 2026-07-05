@@ -3,7 +3,7 @@ Serializers for chat sessions and messages.
 """
 from rest_framework import serializers
 from .models import ChatSession, ChatMessage
-from accounts.serializers import CustomUserSerializer
+from accounts.serializers import UserSerializer
 from agents.serializers import AgentProfileSerializer
 
 
@@ -24,7 +24,7 @@ class ChatMessageSerializer(serializers.ModelSerializer):
 
 
 class ChatSessionSerializer(serializers.ModelSerializer):
-    client = CustomUserSerializer(source='connection.user', read_only=True)
+    client = UserSerializer(source='connection.user', read_only=True)
     agent = AgentProfileSerializer(source='connection.agent', read_only=True)
     connection_status = serializers.CharField(source='connection.status', read_only=True)
     connection_buyer_completed = serializers.BooleanField(source='connection.buyer_completed', read_only=True)

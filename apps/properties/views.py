@@ -1,6 +1,7 @@
 """
 ViewSet for Property Listings with filtering, search, and view tracking.
 """
+from django.db import models
 from rest_framework import viewsets, permissions, status, generics
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -192,7 +193,3 @@ class PropertyViewSet(viewsets.ModelViewSet):
         queryset = self.get_queryset().filter(listing_type='upcoming', status='available')[:10]
         serializer = PropertyListSerializer(queryset, many=True, context={'request': request})
         return Response(serializer.data)
-
-
-# Need F expression for atomic counter update
-from django.db import models  # noqa: E402

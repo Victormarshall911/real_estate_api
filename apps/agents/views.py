@@ -1,6 +1,8 @@
 """
 Views for Agents: listing profiles, adding locations, and initiating connections.
 """
+import uuid
+from django.db.models import Q
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -131,7 +133,7 @@ class AgentConnectionViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         # Return connections where the user is the client, OR where the user is the agent
         user = self.request.user
-        return AgentConnection.objects.filter(models.Q(user=user) | models.Q(agent__user=user))
+        return AgentConnection.objects.filter(Q(user=user) | Q(agent__user=user))
 
     @action(detail=False, methods=['post'])
     def initiate(self, request):
@@ -154,7 +156,7 @@ class AgentConnectionViewSet(viewsets.ReadOnlyModelViewSet):
             return Response({"error": "You already have an active connection with this agent."}, status=status.HTTP_400_BAD_REQUEST)
             
         # Check wallet balance and deduct
-        from apps.wallets.models import Wallet, WalletTransaction
+        from wallets.models import Wallet, WalletTransaction
         wallet, _ = Wallet.objects.get_or_create(user=request.user)
         fee = location.connection_fee
         
@@ -213,7 +215,7 @@ class AgentConnectionViewSet(viewsets.ReadOnlyModelViewSet):
             connection.status = 'closed'
             
             # Release funds to agent's wallet
-            from apps.wallets.models import Wallet, WalletTransaction
+            from wallets.models import Wallet, WalletTransaction
             agent_wallet, _ = Wallet.objects.get_or_create(user=connection.agent.user)
             fee = connection.location_pricing.connection_fee
             

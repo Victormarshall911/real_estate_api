@@ -32,7 +32,7 @@ class ChatSession(models.Model):
 
     @property
     def participants(self):
-        return [self.connection.client, self.connection.agent.user]
+        return [self.connection.user, self.connection.agent.user]
 
 
 class ChatMessage(models.Model):
