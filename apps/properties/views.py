@@ -6,7 +6,7 @@ from rest_framework import viewsets, permissions, status, generics
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from accounts.permissions import IsOwnerOrReadOnly, IsRealtorOnly
+from accounts.permissions import IsOwnerOrReadOnly, IsRealtorOnly, CanListProperties
 from .filters import PropertyFilter
 from .models import PropertyListing, PropertyImage, PropertyView
 from .serializers import (
@@ -41,7 +41,7 @@ class PropertyViewSet(viewsets.ModelViewSet):
         """
         return (
             PropertyListing.objects
-            .select_related('realtor__user')
+            .select_related('realtor__user', 'landlord__user', 'developer__user')
             .prefetch_related('images')
             .all()
         )
@@ -58,13 +58,13 @@ class PropertyViewSet(viewsets.ModelViewSet):
         """
         Dynamic permissions:
         - list/retrieve: public
-        - create: authenticated realtors
+        - create: authenticated sellers (realtors, landlords, developers)
         - update/delete: owner only
         """
         if self.action in ('list', 'retrieve', 'featured', 'upcoming'):
             return [permissions.AllowAny()]
         if self.action == 'create':
-            return [permissions.IsAuthenticated(), IsRealtorOnly()]
+            return [permissions.IsAuthenticated(), CanListProperties()]
         return [permissions.IsAuthenticated(), IsOwnerOrReadOnly()]
 
     def retrieve(self, request, *args, **kwargs):
@@ -123,7 +123,15 @@ class PropertyViewSet(viewsets.ModelViewSet):
         property_listing = self.get_object()
 
         # Verify ownership
-        if property_listing.realtor.user != request.user:
+        owner_user = None
+        if property_listing.realtor:
+            owner_user = property_listing.realtor.user
+        elif property_listing.landlord:
+            owner_user = property_listing.landlord.user
+        elif property_listing.developer:
+            owner_user = property_listing.developer.user
+
+        if owner_user != request.user:
             return Response(
                 {'error': 'You can only upload images to your own listings.'},
                 status=status.HTTP_403_FORBIDDEN,
@@ -157,15 +165,21 @@ class PropertyViewSet(viewsets.ModelViewSet):
     def my_listings(self, request):
         """
         GET /api/v1/properties/my-listings/
-        Return all listings owned by the authenticated realtor.
+        Return all listings owned by the authenticated seller (realtor, landlord, or developer).
         """
-        if not hasattr(request.user, 'realtor_profile'):
+        user = request.user
+        queryset = self.get_queryset()
+        if user.role == 'realtor' and hasattr(user, 'realtor_profile'):
+            queryset = queryset.filter(realtor=user.realtor_profile)
+        elif user.role == 'landlord' and hasattr(user, 'landlord_profile'):
+            queryset = queryset.filter(landlord=user.landlord_profile)
+        elif user.role == 'developer' and hasattr(user, 'developer_profile'):
+            queryset = queryset.filter(developer=user.developer_profile)
+        else:
             return Response(
-                {'error': 'You do not have a realtor profile.'},
+                {'error': 'You do not have a seller profile.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-
-        queryset = self.get_queryset().filter(realtor=request.user.realtor_profile)
         queryset = self.filter_queryset(queryset)
         page = self.paginate_queryset(queryset)
         if page is not None:

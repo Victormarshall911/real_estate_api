@@ -32,6 +32,22 @@ class PropertyListing(models.Model):
         RealtorProfile,
         on_delete=models.CASCADE,
         related_name='properties',
+        null=True,
+        blank=True,
+    )
+    landlord = models.ForeignKey(
+        'landlords.LandlordProfile',
+        on_delete=models.CASCADE,
+        related_name='properties',
+        null=True,
+        blank=True,
+    )
+    developer = models.ForeignKey(
+        'developers.DeveloperProfile',
+        on_delete=models.CASCADE,
+        related_name='properties',
+        null=True,
+        blank=True,
     )
     title = models.CharField(max_length=300, db_index=True)
     description = models.TextField(

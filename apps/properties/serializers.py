@@ -6,6 +6,8 @@ from rest_framework import serializers
 
 from accounts.utils import get_clean_media_url
 from realtors.serializers import RealtorProfileSerializer
+from landlords.serializers import LandlordProfileSerializer
+from developers.serializers import DeveloperProfileSerializer
 from .models import PropertyListing, PropertyImage
 
 
@@ -34,13 +36,14 @@ class PropertyImageUploadSerializer(serializers.ModelSerializer):
 class PropertyListSerializer(serializers.ModelSerializer):
     """
     Lightweight serializer for property grid/list views.
-    Includes primary image and basic realtor info to minimize payload.
+    Includes primary image and basic seller info to minimize payload.
     """
     primary_image_url = serializers.SerializerMethodField()
     land_size_plots = serializers.FloatField(read_only=True)
     realtor_name = serializers.SerializerMethodField()
-    realtor_id = serializers.UUIDField(source='realtor.id', read_only=True)
-    is_verified = serializers.BooleanField(source='realtor.is_verified', read_only=True)
+    realtor_id = serializers.SerializerMethodField()
+    is_verified = serializers.SerializerMethodField()
+    seller_role = serializers.SerializerMethodField()
     image_count = serializers.SerializerMethodField()
 
     class Meta:
@@ -48,13 +51,46 @@ class PropertyListSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'title', 'price', 'land_size', 'land_size_plots',
             'location', 'state', 'status', 'listing_type', 'is_featured', 'primary_image_url',
-            'realtor_name', 'realtor_id', 'is_verified', 'image_count',
+            'realtor_name', 'realtor_id', 'is_verified', 'seller_role', 'image_count',
             'view_count', 'created_at',
         ]
         read_only_fields = fields
 
     def get_realtor_name(self, obj):
-        return obj.realtor.user.full_name
+        if obj.realtor:
+            return obj.realtor.user.full_name
+        if obj.landlord:
+            return obj.landlord.user.full_name
+        if obj.developer:
+            return obj.developer.company_name or obj.developer.user.full_name
+        return "Unknown Seller"
+
+    def get_realtor_id(self, obj):
+        if obj.realtor:
+            return obj.realtor.id
+        if obj.landlord:
+            return obj.landlord.id
+        if obj.developer:
+            return obj.developer.id
+        return None
+
+    def get_is_verified(self, obj):
+        if obj.realtor:
+            return obj.realtor.is_verified
+        if obj.landlord:
+            return obj.landlord.is_verified
+        if obj.developer:
+            return obj.developer.is_verified
+        return False
+
+    def get_seller_role(self, obj):
+        if obj.realtor:
+            return 'realtor'
+        if obj.landlord:
+            return 'landlord'
+        if obj.developer:
+            return 'developer'
+        return 'unknown'
 
     def get_image_count(self, obj):
         return obj.images.count()
@@ -66,10 +102,12 @@ class PropertyListSerializer(serializers.ModelSerializer):
 class PropertyDetailSerializer(serializers.ModelSerializer):
     """
     Full serializer for property detail view.
-    Includes all images and full realtor profile.
+    Includes all images and full seller profile.
     """
     images = PropertyImageSerializer(many=True, read_only=True)
     realtor = RealtorProfileSerializer(read_only=True)
+    landlord = LandlordProfileSerializer(read_only=True)
+    developer = DeveloperProfileSerializer(read_only=True)
     land_size_plots = serializers.FloatField(read_only=True)
     primary_image_url = serializers.SerializerMethodField()
 
@@ -78,7 +116,8 @@ class PropertyDetailSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'title', 'description', 'price', 'land_size',
             'land_size_plots', 'location', 'state', 'latitude', 'longitude',
-            'status', 'listing_type', 'is_featured', 'video', 'primary_image_url', 'images', 'realtor',
+            'status', 'listing_type', 'is_featured', 'video', 'primary_image_url',
+            'images', 'realtor', 'landlord', 'developer',
             'view_count', 'created_at', 'updated_at',
         ]
         read_only_fields = ['id', 'view_count', 'created_at', 'updated_at']
@@ -121,7 +160,13 @@ class PropertyCreateSerializer(serializers.ModelSerializer):
         """Create property and attach any uploaded images."""
         uploaded_images = validated_data.pop('uploaded_images', [])
         request = self.context['request']
-        validated_data['realtor'] = request.user.realtor_profile
+        user = request.user
+        if user.role == 'realtor':
+            validated_data['realtor'] = user.realtor_profile
+        elif user.role == 'landlord':
+            validated_data['landlord'] = user.landlord_profile
+        elif user.role == 'developer':
+            validated_data['developer'] = user.developer_profile
 
         property_listing = PropertyListing.objects.create(**validated_data)
 

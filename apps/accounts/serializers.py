@@ -16,6 +16,8 @@ class UserSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(read_only=True)
     has_realtor_profile = serializers.SerializerMethodField()
     has_agent_profile = serializers.SerializerMethodField()
+    has_landlord_profile = serializers.SerializerMethodField()
+    has_developer_profile = serializers.SerializerMethodField()
     is_fully_verified = serializers.BooleanField(read_only=True)
     profile_photo = serializers.SerializerMethodField()
 
@@ -24,7 +26,8 @@ class UserSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'email', 'first_name', 'last_name', 'full_name',
             'role', 'is_email_verified', 'date_joined',
-            'has_realtor_profile', 'has_agent_profile', 'is_kyc_verified', 'is_profile_complete',
+            'has_realtor_profile', 'has_agent_profile', 'has_landlord_profile', 'has_developer_profile',
+            'is_kyc_verified', 'is_profile_complete',
             'is_fully_verified', 'date_of_birth', 'full_address', 'profile_photo',
         ]
         read_only_fields = fields
@@ -34,6 +37,12 @@ class UserSerializer(serializers.ModelSerializer):
 
     def get_has_agent_profile(self, obj):
         return hasattr(obj, 'agent_profile')
+
+    def get_has_landlord_profile(self, obj):
+        return hasattr(obj, 'landlord_profile')
+
+    def get_has_developer_profile(self, obj):
+        return hasattr(obj, 'developer_profile')
 
     def get_profile_photo(self, obj):
         return get_clean_media_url(obj.profile_photo, self.context.get('request'))
@@ -55,7 +64,7 @@ class CompleteProfileSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         """Ensure at minimum DOB and address are provided for standard buyers/realtors."""
-        if self.instance.role in ['architect', 'agent'] or attrs.get('is_profile_complete') is True:
+        if self.instance.role in ['architect', 'agent', 'landlord', 'developer'] or attrs.get('is_profile_complete') is True:
             return attrs
 
         if not attrs.get('date_of_birth') and not self.instance.date_of_birth:

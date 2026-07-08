@@ -7,6 +7,8 @@ from accounts.serializers import UserSerializer
 from agents.serializers import AgentProfileSerializer
 from realtors.serializers import RealtorProfileSerializer
 from architects.serializers import ArchitectProfileSerializer
+from landlords.serializers import LandlordProfileSerializer
+from developers.serializers import DeveloperProfileSerializer
 
 
 class ChatMessageSerializer(serializers.ModelSerializer):
@@ -53,6 +55,10 @@ class ChatSessionSerializer(serializers.ModelSerializer):
                 return AgentProfileSerializer(seller.agent_profile, context=self.context).data
             if hasattr(seller, 'architect_profile'):
                 return ArchitectProfileSerializer(seller.architect_profile, context=self.context).data
+            if hasattr(seller, 'landlord_profile'):
+                return LandlordProfileSerializer(seller.landlord_profile, context=self.context).data
+            if hasattr(seller, 'developer_profile'):
+                return DeveloperProfileSerializer(seller.developer_profile, context=self.context).data
             return {
                 'id': None,
                 'user': UserSerializer(seller, context=self.context).data,

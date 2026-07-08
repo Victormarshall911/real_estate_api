@@ -20,8 +20,14 @@ class IsOwnerOrReadOnly(permissions.BasePermission):
             return obj.user == request.user
 
         # Check ownership through realtor profile
-        if hasattr(obj, 'realtor'):
+        if hasattr(obj, 'realtor') and obj.realtor:
             return obj.realtor.user == request.user
+
+        if hasattr(obj, 'landlord') and obj.landlord:
+            return obj.landlord.user == request.user
+
+        if hasattr(obj, 'developer') and obj.developer:
+            return obj.developer.user == request.user
 
         return False
 
@@ -37,6 +43,20 @@ class IsRealtorOnly(permissions.BasePermission):
             request.user
             and request.user.is_authenticated
             and request.user.role == 'realtor'
+        )
+
+
+class CanListProperties(permissions.BasePermission):
+    """
+    Allows access to users who are realtors, landlords, or developers.
+    """
+    message = 'Only realtors, landlords, or developers can perform this action.'
+
+    def has_permission(self, request, view):
+        return (
+            request.user
+            and request.user.is_authenticated
+            and request.user.role in ('realtor', 'landlord', 'developer')
         )
 
 
