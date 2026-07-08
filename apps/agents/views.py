@@ -182,7 +182,11 @@ class AgentConnectionViewSet(viewsets.ReadOnlyModelViewSet):
         )
         
         # Auto-create a ChatSession so chat is immediately available
-        chat_session = ChatSession.objects.create(connection=connection)
+        chat_session = ChatSession.objects.create(
+            connection=connection,
+            buyer=request.user,
+            seller=agent.user
+        )
         
         agent.total_connections += 1
         agent.save(update_fields=['total_connections'])

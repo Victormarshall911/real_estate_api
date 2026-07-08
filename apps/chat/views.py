@@ -6,9 +6,12 @@ from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.db.models import Q
+from django.contrib.auth import get_user_model
 
 from .models import ChatSession, ChatMessage
 from .serializers import ChatSessionSerializer, ChatMessageSerializer
+
+User = get_user_model()
 
 
 class ChatSessionViewSet(viewsets.ReadOnlyModelViewSet):
@@ -20,11 +23,41 @@ class ChatSessionViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        if getattr(user, 'role', '') == 'agent' and hasattr(user, 'agent_profile'):
-            return ChatSession.objects.filter(
-                Q(connection__user=user) | Q(connection__agent=user.agent_profile)
+        # Retrieve all sessions where the user is either the buyer or the seller
+        return ChatSession.objects.filter(Q(buyer=user) | Q(seller=user))
+
+    @action(detail=False, methods=['post'])
+    def start_direct(self, request):
+        """Start a direct chat with a Realtor, Agent, or another user."""
+        seller_id = request.data.get('seller_id')
+        if not seller_id:
+            return Response({"error": "seller_id is required."}, status=status.HTTP_400_BAD_REQUEST)
+            
+        try:
+            seller = User.objects.get(id=seller_id)
+        except User.DoesNotExist:
+            return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+            
+        if seller == request.user:
+            return Response({"error": "You cannot chat with yourself."}, status=status.HTTP_400_BAD_REQUEST)
+            
+        # Get or create a session where the user and seller are participants and it's a direct chat (connection is null)
+        session = ChatSession.objects.filter(
+            Q(buyer=request.user, seller=seller) | Q(buyer=seller, seller=request.user),
+            connection__isnull=True
+        ).first()
+        
+        created = False
+        if not session:
+            session = ChatSession.objects.create(
+                buyer=request.user,
+                seller=seller,
+                connection=None
             )
-        return ChatSession.objects.filter(connection__user=user)
+            created = True
+            
+        serializer = self.get_serializer(session)
+        return Response(serializer.data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
 
     @action(detail=True, methods=['get'])
     def messages(self, request, pk=None):

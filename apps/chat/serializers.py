@@ -5,6 +5,7 @@ from rest_framework import serializers
 from .models import ChatSession, ChatMessage
 from accounts.serializers import UserSerializer
 from agents.serializers import AgentProfileSerializer
+from realtors.serializers import RealtorProfileSerializer
 
 
 class ChatMessageSerializer(serializers.ModelSerializer):
@@ -24,11 +25,11 @@ class ChatMessageSerializer(serializers.ModelSerializer):
 
 
 class ChatSessionSerializer(serializers.ModelSerializer):
-    client = UserSerializer(source='connection.user', read_only=True)
-    agent = AgentProfileSerializer(source='connection.agent', read_only=True)
-    connection_status = serializers.CharField(source='connection.status', read_only=True)
-    connection_buyer_completed = serializers.BooleanField(source='connection.buyer_completed', read_only=True)
-    connection_agent_completed = serializers.BooleanField(source='connection.agent_completed', read_only=True)
+    client = UserSerializer(source='buyer', read_only=True)
+    agent = serializers.SerializerMethodField()
+    connection_status = serializers.SerializerMethodField()
+    connection_buyer_completed = serializers.SerializerMethodField()
+    connection_agent_completed = serializers.SerializerMethodField()
     last_message = serializers.SerializerMethodField()
     unread_count = serializers.SerializerMethodField()
 
@@ -39,6 +40,39 @@ class ChatSessionSerializer(serializers.ModelSerializer):
             'connection_buyer_completed', 'connection_agent_completed',
             'created_at', 'updated_at', 'is_active', 'last_message', 'unread_count'
         ]
+
+    def get_agent(self, obj):
+        if obj.connection:
+            return AgentProfileSerializer(obj.connection.agent, context=self.context).data
+        seller = obj.seller
+        if seller:
+            if hasattr(seller, 'realtor_profile'):
+                return RealtorProfileSerializer(seller.realtor_profile, context=self.context).data
+            if hasattr(seller, 'agent_profile'):
+                return AgentProfileSerializer(seller.agent_profile, context=self.context).data
+            return {
+                'id': None,
+                'user': UserSerializer(seller, context=self.context).data,
+                'company_name': 'Independent',
+                'phone_number': '',
+                'is_verified': False
+            }
+        return None
+
+    def get_connection_status(self, obj):
+        if obj.connection:
+            return obj.connection.status
+        return 'active'
+
+    def get_connection_buyer_completed(self, obj):
+        if obj.connection:
+            return obj.connection.buyer_completed
+        return False
+
+    def get_connection_agent_completed(self, obj):
+        if obj.connection:
+            return obj.connection.agent_completed
+        return False
 
     def get_last_message(self, obj):
         last_msg = obj.messages.order_by('-created_at').first()
