@@ -34,7 +34,7 @@ class InitiateKYCView(APIView):
         serializer.is_valid(raise_exception=True)
 
         vtype = serializer.validated_data['verification_type']
-        id_number = serializer.validated_data['id_number']
+        id_number = serializer.validated_data['id_number'].strip().replace('-', '').replace(' ', '')
 
         # Call Dojah
         service = DojahService()

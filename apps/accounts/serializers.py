@@ -54,6 +54,11 @@ class UserUpdateSerializer(serializers.ModelSerializer):
         model = User
         fields = ['first_name', 'last_name', 'date_of_birth', 'full_address', 'profile_photo']
 
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        ret['profile_photo'] = get_clean_media_url(instance.profile_photo, self.context.get('request'))
+        return ret
+
 
 class CompleteProfileSerializer(serializers.ModelSerializer):
     """Serializer for the profile completion step (address, DOB, photo)."""
@@ -61,6 +66,11 @@ class CompleteProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['date_of_birth', 'full_address', 'profile_photo', 'is_profile_complete']
+
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        ret['profile_photo'] = get_clean_media_url(instance.profile_photo, self.context.get('request'))
+        return ret
 
     def validate(self, attrs):
         """Ensure at minimum DOB and address are provided for standard buyers/realtors."""

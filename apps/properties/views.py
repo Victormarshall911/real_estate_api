@@ -9,7 +9,7 @@ from rest_framework.response import Response
 
 from accounts.permissions import IsOwnerOrReadOnly, IsRealtorOnly, CanListProperties
 from .filters import PropertyFilter
-from .models import PropertyListing, PropertyImage, PropertyView, State, LGA, PropertyDocument, VerificationRequest, PropertyAnalyticsEvent
+from .models import PropertyListing, PropertyImage, PropertyView, State, LGA, PropertyDocument, VerificationRequest, PropertyAnalyticsEvent, SavedSearch
 from .serializers import (
     PropertyListSerializer,
     PropertyDetailSerializer,
@@ -20,6 +20,7 @@ from .serializers import (
     LGASerializer,
     PropertyDocumentSerializer,
     VerificationRequestSerializer,
+    SavedSearchSerializer,
 )
 
 
@@ -437,3 +438,21 @@ class LGAViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [permissions.AllowAny]
     pagination_class = None
     filterset_fields = ['state']
+
+
+class SavedSearchViewSet(viewsets.ModelViewSet):
+    """
+    CRUD endpoints for user saved search alerts:
+    GET /api/v1/properties/saved-searches/
+    POST /api/v1/properties/saved-searches/
+    DELETE /api/v1/properties/saved-searches/<id>/
+    """
+    serializer_class = SavedSearchSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return SavedSearch.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+

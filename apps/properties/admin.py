@@ -1,6 +1,6 @@
 """Admin configuration for the properties app."""
 from django.contrib import admin
-from .models import PropertyListing, PropertyImage, PropertyView, PropertyDocument, VerificationRequest
+from .models import PropertyListing, PropertyImage, PropertyView, PropertyDocument, VerificationRequest, PropertyAnalyticsEvent, SavedSearch
 
 
 class PropertyImageInline(admin.TabularInline):
@@ -58,4 +58,20 @@ class VerificationRequestAdmin(admin.ModelAdmin):
         elif obj.status in [VerificationRequest.Status.REJECTED, VerificationRequest.Status.PENDING]:
             obj.property_listing.is_title_verified = False
             obj.property_listing.save(update_fields=['is_title_verified'])
+
+
+@admin.register(PropertyAnalyticsEvent)
+class PropertyAnalyticsEventAdmin(admin.ModelAdmin):
+    list_display = ('property_listing', 'event_type', 'viewer', 'created_at')
+    list_filter = ('event_type', 'created_at')
+    raw_id_fields = ('property_listing', 'viewer')
+
+
+@admin.register(SavedSearch)
+class SavedSearchAdmin(admin.ModelAdmin):
+    list_display = ('title', 'user', 'state', 'lga', 'max_price', 'email_alerts_enabled', 'created_at')
+    list_filter = ('email_alerts_enabled', 'created_at')
+    search_fields = ('title', 'user__email')
+    raw_id_fields = ('user',)
+
 

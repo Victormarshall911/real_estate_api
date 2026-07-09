@@ -8,7 +8,7 @@ from accounts.utils import get_clean_media_url
 from realtors.serializers import RealtorProfileSerializer
 from landlords.serializers import LandlordProfileSerializer
 from developers.serializers import DeveloperProfileSerializer
-from .models import PropertyListing, PropertyImage, State, LGA, PropertyDocument, VerificationRequest
+from .models import PropertyListing, PropertyImage, State, LGA, PropertyDocument, VerificationRequest, SavedSearch
 
 
 class StateSerializer(serializers.ModelSerializer):
@@ -303,3 +303,16 @@ class VerificationRequestSerializer(serializers.ModelSerializer):
             'status', 'status_display', 'report_notes', 'fee_charged', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'requester', 'fee_charged', 'created_at', 'updated_at']
+
+
+class SavedSearchSerializer(serializers.ModelSerializer):
+    state_name = serializers.CharField(source='state.name', read_only=True)
+    lga_name = serializers.CharField(source='lga.name', read_only=True)
+
+    class Meta:
+        model = SavedSearch
+        fields = [
+            'id', 'title', 'state', 'state_name', 'lga', 'lga_name',
+            'property_type', 'max_price', 'min_bedrooms', 'email_alerts_enabled', 'created_at'
+        ]
+        read_only_fields = ['id', 'created_at']

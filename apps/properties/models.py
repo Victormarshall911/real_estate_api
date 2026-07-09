@@ -449,3 +449,44 @@ class PropertyAnalyticsEvent(models.Model):
 
     def __str__(self):
         return f'{self.get_event_type_display()} on {self.property_listing.title}'
+
+
+class SavedSearch(models.Model):
+    """
+    Stores user filter parameters for saved searches and automatic notification alerts.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='saved_searches',
+    )
+    title = models.CharField(max_length=255, help_text="e.g. Lekki Residential Plots under ₦100M")
+    state = models.ForeignKey(
+        State,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='saved_searches',
+    )
+    lga = models.ForeignKey(
+        LGA,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='saved_searches',
+    )
+    property_type = models.CharField(max_length=50, blank=True, null=True)
+    max_price = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    min_bedrooms = models.PositiveSmallIntegerField(null=True, blank=True)
+    email_alerts_enabled = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'saved_searches'
+        verbose_name = 'Saved Search'
+        verbose_name_plural = 'Saved Searches'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.title} ({self.user.email})'
