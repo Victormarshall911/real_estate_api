@@ -1,6 +1,6 @@
 """Admin configuration for the properties app."""
 from django.contrib import admin
-from .models import PropertyListing, PropertyImage, PropertyView
+from .models import PropertyListing, PropertyImage, PropertyView, PropertyDocument, VerificationRequest
 
 
 class PropertyImageInline(admin.TabularInline):
@@ -33,3 +33,29 @@ class PropertyViewAdmin(admin.ModelAdmin):
     list_filter = ('viewed_at',)
     readonly_fields = ('id', 'property_listing', 'viewer_ip', 'user_agent', 'viewed_at')
     list_per_page = 50
+
+
+@admin.register(PropertyDocument)
+class PropertyDocumentAdmin(admin.ModelAdmin):
+    list_display = ('property_listing', 'document_type', 'is_verified', 'uploaded_at')
+    list_filter = ('document_type', 'is_verified')
+    raw_id_fields = ('property_listing',)
+
+
+@admin.register(VerificationRequest)
+class VerificationRequestAdmin(admin.ModelAdmin):
+    list_display = ('property_listing', 'requester', 'status', 'fee_charged', 'created_at')
+    list_filter = ('status', 'created_at')
+    search_fields = ('property_listing__title', 'requester__email', 'report_notes')
+    readonly_fields = ('id', 'fee_charged', 'created_at', 'updated_at')
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        if obj.status == VerificationRequest.Status.APPROVED:
+            obj.property_listing.is_title_verified = True
+            obj.property_listing.save(update_fields=['is_title_verified'])
+            obj.property_listing.documents.all().update(is_verified=True)
+        elif obj.status in [VerificationRequest.Status.REJECTED, VerificationRequest.Status.PENDING]:
+            obj.property_listing.is_title_verified = False
+            obj.property_listing.save(update_fields=['is_title_verified'])
+

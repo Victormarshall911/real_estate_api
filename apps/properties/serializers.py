@@ -8,7 +8,7 @@ from accounts.utils import get_clean_media_url
 from realtors.serializers import RealtorProfileSerializer
 from landlords.serializers import LandlordProfileSerializer
 from developers.serializers import DeveloperProfileSerializer
-from .models import PropertyListing, PropertyImage, State, LGA
+from .models import PropertyListing, PropertyImage, State, LGA, PropertyDocument, VerificationRequest
 
 
 class StateSerializer(serializers.ModelSerializer):
@@ -70,7 +70,7 @@ class PropertyListSerializer(serializers.ModelSerializer):
             'realtor_name', 'realtor_id', 'is_verified', 'seller_role', 'image_count',
             'view_count', 'created_at', 'property_category', 'property_type',
             'bedrooms', 'bathrooms', 'rent_frequency', 'state_ref', 'lga_ref',
-            'state_name', 'lga_name',
+            'state_name', 'lga_name', 'is_title_verified',
         ]
         read_only_fields = fields
 
@@ -138,6 +138,27 @@ class PropertyDetailSerializer(serializers.ModelSerializer):
     lga_name = serializers.SerializerMethodField()
     state_ref = StateSerializer(read_only=True)
     lga_ref = LGASerializer(read_only=True)
+    documents = serializers.SerializerMethodField()
+
+    def get_documents(self, obj):
+        # Only show verified documents to prospective buyers, but show all to owner/staff
+        user = self.context.get('request').user if self.context.get('request') else None
+        is_owner = False
+        if user and user.is_authenticated:
+            if obj.realtor and obj.realtor.user == user:
+                is_owner = True
+            elif obj.landlord and obj.landlord.user == user:
+                is_owner = True
+            elif obj.developer and obj.developer.user == user:
+                is_owner = True
+            elif user.is_staff:
+                is_owner = True
+        
+        docs = obj.documents.all()
+        if not is_owner:
+            docs = docs.filter(is_verified=True)
+            
+        return PropertyDocumentSerializer(docs, many=True, context=self.context).data
 
     class Meta:
         model = PropertyListing
@@ -150,7 +171,7 @@ class PropertyDetailSerializer(serializers.ModelSerializer):
             'property_category', 'property_type', 'bedrooms', 'bathrooms', 'built_up_area',
             'has_electricity', 'has_water', 'has_drainage', 'has_security', 'has_generator',
             'has_c_of_o', 'has_survey_plan', 'rent_frequency', 'caution_fee', 'agency_fee', 'legal_fee',
-            'state_ref', 'lga_ref', 'state_name', 'lga_name',
+            'state_ref', 'lga_ref', 'state_name', 'lga_name', 'is_title_verified', 'documents',
         ]
         read_only_fields = ['id', 'view_count', 'created_at', 'updated_at']
 
@@ -254,3 +275,31 @@ class PropertyCreateSerializer(serializers.ModelSerializer):
             setattr(instance, attr, value)
         instance.save()
         return instance
+
+
+class PropertyDocumentSerializer(serializers.ModelSerializer):
+    document_type_display = serializers.CharField(source='get_document_type_display', read_only=True)
+    file_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PropertyDocument
+        fields = ['id', 'property_listing', 'document_type', 'document_type_display', 'file', 'file_url', 'is_verified', 'uploaded_at']
+        read_only_fields = ['id', 'is_verified', 'uploaded_at']
+
+    def get_file_url(self, obj):
+        return get_clean_media_url(obj.file, self.context.get('request'))
+
+
+class VerificationRequestSerializer(serializers.ModelSerializer):
+    requester_email = serializers.EmailField(source='requester.email', read_only=True)
+    requester_name = serializers.CharField(source='requester.full_name', read_only=True)
+    property_title = serializers.CharField(source='property_listing.title', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+
+    class Meta:
+        model = VerificationRequest
+        fields = [
+            'id', 'requester', 'requester_email', 'requester_name', 'property_listing', 'property_title',
+            'status', 'status_display', 'report_notes', 'fee_charged', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'requester', 'fee_charged', 'created_at', 'updated_at']

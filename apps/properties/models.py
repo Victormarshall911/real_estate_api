@@ -7,6 +7,7 @@ import uuid
 from django.contrib.postgres.indexes import GinIndex
 from django.contrib.postgres.search import SearchVectorField
 from django.db import models
+from django.conf import settings
 
 from realtors.models import RealtorProfile
 
@@ -218,6 +219,10 @@ class PropertyListing(models.Model):
         default=Status.AVAILABLE,
         db_index=True,
     )
+    is_title_verified = models.BooleanField(
+        default=False,
+        help_text='Indicates if the property title has been verified by the LandMarket legal team.'
+    )
     listing_type = models.CharField(
         max_length=15,
         choices=ListingType.choices,
@@ -326,3 +331,80 @@ class PropertyView(models.Model):
 
     def __str__(self):
         return f'View on {self.property_listing.title} at {self.viewed_at}'
+
+
+class PropertyDocument(models.Model):
+    """
+    Legal documents uploaded for a property listing (e.g. C of O, Survey Plan).
+    """
+    class DocumentType(models.TextChoices):
+        C_OF_O = 'c_of_o', 'Certificate of Occupancy'
+        DEED = 'deed_of_assignment', 'Deed of Assignment'
+        SURVEY = 'survey_plan', 'Registered Survey Plan'
+        GAZETTE = 'gazette', 'Excision Gazette'
+        OTHER = 'other', 'Other Document'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    property_listing = models.ForeignKey(
+        PropertyListing,
+        on_delete=models.CASCADE,
+        related_name='documents',
+    )
+    document_type = models.CharField(
+        max_length=30,
+        choices=DocumentType.choices,
+        default=DocumentType.OTHER,
+    )
+    file = models.FileField(upload_to='property_documents/')
+    is_verified = models.BooleanField(default=False)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'property_documents'
+        verbose_name = 'Property Legal Document'
+        verbose_name_plural = 'Property Legal Documents'
+        ordering = ['uploaded_at']
+
+    def __str__(self):
+        return f'{self.get_document_type_display()} for {self.property_listing.title}'
+
+
+class VerificationRequest(models.Model):
+    """
+    A buyer or seller request for LandMarket legal team to verify title documents.
+    """
+    class Status(models.TextChoices):
+        PENDING = 'pending', 'Pending Search'
+        IN_PROGRESS = 'in_progress', 'Search In Progress'
+        APPROVED = 'approved', 'Approved / Title Clear'
+        REJECTED = 'rejected', 'Rejected / Title Disputed'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    requester = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='verification_requests',
+    )
+    property_listing = models.ForeignKey(
+        PropertyListing,
+        on_delete=models.CASCADE,
+        related_name='verification_requests',
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PENDING,
+    )
+    report_notes = models.TextField(blank=True, default='')
+    fee_charged = models.DecimalField(max_digits=12, decimal_places=2, default=10000.00)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'property_verification_requests'
+        verbose_name = 'Title Verification Request'
+        verbose_name_plural = 'Title Verification Requests'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'Search Request by {self.requester.email} on {self.property_listing.title} ({self.get_status_display()})'

@@ -1,6 +1,7 @@
 """
 ViewSet for Property Listings with filtering, search, and view tracking.
 """
+import uuid
 from django.db import models
 from rest_framework import viewsets, permissions, status, generics
 from rest_framework.decorators import action
@@ -8,7 +9,7 @@ from rest_framework.response import Response
 
 from accounts.permissions import IsOwnerOrReadOnly, IsRealtorOnly, CanListProperties
 from .filters import PropertyFilter
-from .models import PropertyListing, PropertyImage, PropertyView, State, LGA
+from .models import PropertyListing, PropertyImage, PropertyView, State, LGA, PropertyDocument, VerificationRequest
 from .serializers import (
     PropertyListSerializer,
     PropertyDetailSerializer,
@@ -17,6 +18,8 @@ from .serializers import (
     PropertyImageUploadSerializer,
     StateSerializer,
     LGASerializer,
+    PropertyDocumentSerializer,
+    VerificationRequestSerializer,
 )
 
 
@@ -61,12 +64,15 @@ class PropertyViewSet(viewsets.ModelViewSet):
         Dynamic permissions:
         - list/retrieve: public
         - create: authenticated sellers (realtors, landlords, developers)
-        - update/delete: owner only
+        - request_verification/my_verifications: authenticated users
+        - upload_document/update/delete: owner only
         """
         if self.action in ('list', 'retrieve', 'featured', 'upcoming'):
             return [permissions.AllowAny()]
         if self.action == 'create':
             return [permissions.IsAuthenticated(), CanListProperties()]
+        if self.action in ('request_verification', 'my_verifications'):
+            return [permissions.IsAuthenticated()]
         return [permissions.IsAuthenticated(), IsOwnerOrReadOnly()]
 
     def retrieve(self, request, *args, **kwargs):
@@ -208,6 +214,122 @@ class PropertyViewSet(viewsets.ModelViewSet):
         """
         queryset = self.get_queryset().filter(property_type='estate', status='available')[:10]
         serializer = PropertyListSerializer(queryset, many=True, context={'request': request})
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'], url_path='upload-document', permission_classes=[permissions.IsAuthenticated])
+    def upload_document(self, request, id=None):
+        """
+        POST /api/v1/properties/<id>/upload-document/
+        Allows the listing owner to upload a legal document.
+        """
+        property_listing = self.get_object()
+        user = request.user
+        is_owner = False
+        if property_listing.realtor and property_listing.realtor.user == user:
+            is_owner = True
+        elif property_listing.landlord and property_listing.landlord.user == user:
+            is_owner = True
+        elif property_listing.developer and property_listing.developer.user == user:
+            is_owner = True
+            
+        if not is_owner and not user.is_staff:
+            return Response(
+                {"error": "Only the listing owner can upload legal documents."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+            
+        document_type = request.data.get('document_type')
+        uploaded_file = request.FILES.get('file')
+        
+        if not document_type or not uploaded_file:
+            return Response(
+                {"error": "Both 'document_type' and 'file' are required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        if document_type not in PropertyDocument.DocumentType.values:
+            return Response(
+                {"error": f"Invalid document_type. Must be one of: {PropertyDocument.DocumentType.values}"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        doc = PropertyDocument.objects.create(
+            property_listing=property_listing,
+            document_type=document_type,
+            file=uploaded_file
+        )
+        
+        serializer = PropertyDocumentSerializer(doc, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'], url_path='request-verification', permission_classes=[permissions.IsAuthenticated])
+    def request_verification(self, request, id=None):
+        """
+        POST /api/v1/properties/<id>/request-verification/
+        Request platform legal verification on this listing for ₦10,000.
+        """
+        property_listing = self.get_object()
+        user = request.user
+        
+        existing = VerificationRequest.objects.filter(
+            property_listing=property_listing,
+            requester=user,
+            status__in=['pending', 'in_progress']
+        ).first()
+        if existing:
+            return Response(
+                {"error": "You already have a pending title verification request for this property."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        if not property_listing.documents.exists():
+            return Response(
+                {"error": "No legal documents have been uploaded for this property yet. A title search cannot be requested without documents."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        from wallets.models import Wallet, WalletTransaction
+        wallet, _ = Wallet.objects.get_or_create(user=user)
+        fee = 10000.00
+        
+        if wallet.balance < fee:
+            return Response(
+                {"error": "Insufficient wallet balance to cover the ₦10,000 verification fee. Please deposit funds first."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        wallet.balance -= models.DecimalField().to_python(fee)
+        wallet.save()
+        
+        WalletTransaction.objects.create(
+            wallet=wallet,
+            transaction_type='payment',
+            amount=fee,
+            reference=f"title_verify_{property_listing.id}_{uuid.uuid4().hex[:6]}",
+            description=f"Paid fee for Title Verification on listing: {property_listing.title}"
+        )
+        
+        req = VerificationRequest.objects.create(
+            requester=user,
+            property_listing=property_listing,
+            fee_charged=fee
+        )
+        
+        serializer = VerificationRequestSerializer(req, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['get'], url_path='my-verifications', permission_classes=[permissions.IsAuthenticated])
+    def my_verifications(self, request):
+        """
+        GET /api/v1/properties/my-verifications/
+        Returns list of verification requests submitted by the logged-in user.
+        """
+        queryset = VerificationRequest.objects.filter(requester=request.user)
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = VerificationRequestSerializer(page, many=True, context={'request': request})
+            return self.get_paginated_response(serializer.data)
+        serializer = VerificationRequestSerializer(queryset, many=True, context={'request': request})
         return Response(serializer.data)
 
 
