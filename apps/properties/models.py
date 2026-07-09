@@ -408,3 +408,44 @@ class VerificationRequest(models.Model):
 
     def __str__(self):
         return f'Search Request by {self.requester.email} on {self.property_listing.title} ({self.get_status_display()})'
+
+
+class PropertyAnalyticsEvent(models.Model):
+    """
+    Tracks analytical events like views and lead generation clicks for a property.
+    """
+    class EventType(models.TextChoices):
+        VIEW = 'view', 'Page View'
+        WHATSAPP_CLICK = 'whatsapp_click', 'WhatsApp Click'
+        PHONE_CLICK = 'phone_click', 'Phone Call Click'
+        ESCROW_PROPOSE = 'escrow_propose', 'Escrow Inquiry'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    property_listing = models.ForeignKey(
+        PropertyListing,
+        on_delete=models.CASCADE,
+        related_name='analytics_events',
+    )
+    event_type = models.CharField(
+        max_length=20,
+        choices=EventType.choices,
+        default=EventType.VIEW,
+        db_index=True,
+    )
+    viewer = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='viewed_events',
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        db_table = 'property_analytics_events'
+        verbose_name = 'Property Analytics Event'
+        verbose_name_plural = 'Property Analytics Events'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.get_event_type_display()} on {self.property_listing.title}'

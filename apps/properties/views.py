@@ -9,7 +9,7 @@ from rest_framework.response import Response
 
 from accounts.permissions import IsOwnerOrReadOnly, IsRealtorOnly, CanListProperties
 from .filters import PropertyFilter
-from .models import PropertyListing, PropertyImage, PropertyView, State, LGA, PropertyDocument, VerificationRequest
+from .models import PropertyListing, PropertyImage, PropertyView, State, LGA, PropertyDocument, VerificationRequest, PropertyAnalyticsEvent
 from .serializers import (
     PropertyListSerializer,
     PropertyDetailSerializer,
@@ -331,6 +331,91 @@ class PropertyViewSet(viewsets.ModelViewSet):
             return self.get_paginated_response(serializer.data)
         serializer = VerificationRequestSerializer(queryset, many=True, context={'request': request})
         return Response(serializer.data)
+
+    @action(detail=True, methods=['post'], url_path='track-event', permission_classes=[permissions.AllowAny])
+    def track_event(self, request, pk=None):
+        """
+        POST /api/v1/properties/<id>/track-event/
+        Tracks an analytical event (view, whatsapp_click, phone_click, escrow_propose).
+        """
+        property_obj = self.get_object()
+        event_type = request.data.get('event_type', 'view')
+        valid_events = [choice[0] for choice in PropertyAnalyticsEvent.EventType.choices]
+        if event_type not in valid_events:
+            event_type = 'view'
+
+        if event_type == 'view':
+            PropertyListing.objects.filter(pk=property_obj.pk).update(view_count=models.F('view_count') + 1)
+
+        PropertyAnalyticsEvent.objects.create(
+            property_listing=property_obj,
+            event_type=event_type,
+            viewer=request.user if request.user.is_authenticated else None,
+        )
+        return Response({'status': 'tracked', 'event_type': event_type}, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['get'], url_path='my-analytics', permission_classes=[permissions.IsAuthenticated])
+    def my_analytics(self, request):
+        """
+        GET /api/v1/properties/my-analytics/
+        Returns aggregated views, inquiries, and 14-day daily trends for the logged-in seller/realtor.
+        """
+        from django.utils import timezone
+        import datetime
+
+        user = request.user
+        qs = PropertyListing.objects.filter(
+            models.Q(realtor__user=user) | models.Q(landlord__user=user) | models.Q(developer__user=user)
+        ).distinct()
+
+        total_properties = qs.count()
+        total_views = sum(p.view_count for p in qs)
+
+        events_qs = PropertyAnalyticsEvent.objects.filter(property_listing__in=qs)
+        total_whatsapp_clicks = events_qs.filter(event_type='whatsapp_click').count()
+        total_phone_clicks = events_qs.filter(event_type='phone_click').count()
+        total_inquiries = total_whatsapp_clicks + total_phone_clicks + events_qs.filter(event_type='escrow_propose').count()
+
+        # 14-day timeline
+        today = timezone.now().date()
+        daily_trends = []
+        for i in range(13, -1, -1):
+            day = today - datetime.timedelta(days=i)
+            day_events = events_qs.filter(created_at__date=day)
+            views_count = day_events.filter(event_type='view').count()
+            leads_count = day_events.exclude(event_type='view').count()
+            daily_trends.append({
+                'date': day.strftime('%Y-%m-%d'),
+                'label': day.strftime('%b %d'),
+                'views': views_count,
+                'leads': leads_count,
+            })
+
+        # Property breakdown
+        property_breakdown = []
+        for p in qs[:15]:
+            p_events = events_qs.filter(property_listing=p)
+            wa = p_events.filter(event_type='whatsapp_click').count()
+            ph = p_events.filter(event_type='phone_click').count()
+            property_breakdown.append({
+                'id': str(p.id),
+                'title': p.title,
+                'status': p.status,
+                'views': p.view_count,
+                'whatsapp_clicks': wa,
+                'phone_clicks': ph,
+                'leads': wa + ph,
+            })
+
+        return Response({
+            'total_properties': total_properties,
+            'total_views': total_views,
+            'total_inquiries': total_inquiries,
+            'total_whatsapp_clicks': total_whatsapp_clicks,
+            'total_phone_clicks': total_phone_clicks,
+            'daily_trends': daily_trends,
+            'property_breakdown': property_breakdown,
+        })
 
 
 class StateViewSet(viewsets.ReadOnlyModelViewSet):
