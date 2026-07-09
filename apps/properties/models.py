@@ -13,6 +13,34 @@ from realtors.models import RealtorProfile
 
 
 
+class State(models.Model):
+    name = models.CharField(max_length=100, unique=True, db_index=True)
+
+    class Meta:
+        db_table = 'property_states'
+        verbose_name = 'State'
+        verbose_name_plural = 'States'
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
+class LGA(models.Model):
+    name = models.CharField(max_length=100, db_index=True)
+    state = models.ForeignKey(State, on_delete=models.CASCADE, related_name='lgas')
+
+    class Meta:
+        db_table = 'property_lgas'
+        verbose_name = 'LGA'
+        verbose_name_plural = 'LGAs'
+        ordering = ['name']
+        unique_together = ('name', 'state')
+
+    def __str__(self):
+        return f"{self.name}, {self.state.name}"
+
+
 class PropertyListing(models.Model):
     """
     A land property listing created by a verified realtor.
@@ -23,9 +51,31 @@ class PropertyListing(models.Model):
         AVAILABLE = 'available', 'Available'
         SOLD = 'sold', 'Sold'
 
+    class PropertyCategory(models.TextChoices):
+        LAND = 'land', 'Land'
+        BUILDING = 'building', 'Building'
+
+    class PropertyType(models.TextChoices):
+        PLOT = 'plot', 'Plot'
+        ESTATE = 'estate', 'Upcoming Estate'
+        HOUSE = 'house', 'House'
+        APARTMENT = 'apartment', 'Apartment'
+        COMMERCIAL = 'commercial', 'Commercial Space'
+        OFFICE = 'office', 'Office Space'
+        SHORT_LET = 'short_let_apartment', 'Short-Let Apartment'
+
     class ListingType(models.TextChoices):
+        SALE = 'sale', 'For Sale'
+        RENT = 'rent', 'For Rent'
+        LEASE = 'lease', 'For Lease'
+        SHORT_LET = 'short_let', 'Short-Let'
         REGULAR = 'regular', 'Regular'
         UPCOMING = 'upcoming', 'Upcoming Estate'
+
+    class RentFrequency(models.TextChoices):
+        YEARLY = 'yearly', 'Yearly'
+        MONTHLY = 'monthly', 'Monthly'
+        DAILY = 'daily', 'Daily'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     realtor = models.ForeignKey(
@@ -63,6 +113,79 @@ class PropertyListing(models.Model):
         decimal_places=2,
         help_text='Size in square meters.',
     )
+    property_category = models.CharField(
+        max_length=20,
+        choices=PropertyCategory.choices,
+        default=PropertyCategory.LAND,
+        db_index=True,
+    )
+    property_type = models.CharField(
+        max_length=30,
+        choices=PropertyType.choices,
+        default=PropertyType.PLOT,
+        db_index=True,
+    )
+    bedrooms = models.PositiveIntegerField(null=True, blank=True)
+    bathrooms = models.PositiveIntegerField(null=True, blank=True)
+    built_up_area = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text='Built-up area in square meters (for houses/apartments).'
+    )
+    # Amenity Flags
+    has_electricity = models.BooleanField(default=False)
+    has_water = models.BooleanField(default=False)
+    has_drainage = models.BooleanField(default=False)
+    has_security = models.BooleanField(default=False)
+    has_generator = models.BooleanField(default=False)
+    has_c_of_o = models.BooleanField(default=False)
+    has_survey_plan = models.BooleanField(default=False)
+
+    # Rental details
+    rent_frequency = models.CharField(
+        max_length=15,
+        choices=RentFrequency.choices,
+        null=True,
+        blank=True,
+        db_index=True,
+    )
+    caution_fee = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+    )
+    agency_fee = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+    )
+    legal_fee = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+    )
+
+    # Structured Locations
+    state_ref = models.ForeignKey(
+        State,
+        on_delete=models.SET_NULL,
+        related_name='properties',
+        null=True,
+        blank=True,
+    )
+    lga_ref = models.ForeignKey(
+        LGA,
+        on_delete=models.SET_NULL,
+        related_name='properties',
+        null=True,
+        blank=True,
+    )
+
     location = models.CharField(
         max_length=300,
         help_text='Human-readable location string (e.g., "Lekki Phase 1, Lagos").',
@@ -98,7 +221,7 @@ class PropertyListing(models.Model):
     listing_type = models.CharField(
         max_length=15,
         choices=ListingType.choices,
-        default=ListingType.REGULAR,
+        default=ListingType.SALE,
         db_index=True,
     )
     is_featured = models.BooleanField(

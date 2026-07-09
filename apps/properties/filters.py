@@ -24,10 +24,24 @@ class PropertyFilter(filters.FilterSet):
     search = filters.CharFilter(method='filter_search')
     status = filters.ChoiceFilter(choices=PropertyListing.Status.choices)
     state = filters.CharFilter(field_name='state', lookup_expr='icontains')
+    
+    # New filters for Phase 1
+    property_category = filters.CharFilter(field_name='property_category')
+    property_type = filters.CharFilter(field_name='property_type')
+    bedrooms = filters.NumberFilter(field_name='bedrooms')
+    bedrooms_gte = filters.NumberFilter(field_name='bedrooms', lookup_expr='gte')
+    bathrooms = filters.NumberFilter(field_name='bathrooms')
+    rent_frequency = filters.CharFilter(field_name='rent_frequency')
+    state_ref = filters.NumberFilter(field_name='state_ref')
+    lga_ref = filters.NumberFilter(field_name='lga_ref')
 
     class Meta:
         model = PropertyListing
-        fields = ['min_price', 'max_price', 'min_size', 'max_size', 'location', 'search', 'status', 'state']
+        fields = [
+            'min_price', 'max_price', 'min_size', 'max_size', 'location', 'search',
+            'status', 'state', 'property_category', 'property_type', 'bedrooms',
+            'bedrooms_gte', 'bathrooms', 'rent_frequency', 'state_ref', 'lga_ref'
+        ]
 
     def filter_location(self, queryset, name, value):
         """Filter by location or state (case-insensitive partial match)."""

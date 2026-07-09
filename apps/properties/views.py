@@ -8,13 +8,15 @@ from rest_framework.response import Response
 
 from accounts.permissions import IsOwnerOrReadOnly, IsRealtorOnly, CanListProperties
 from .filters import PropertyFilter
-from .models import PropertyListing, PropertyImage, PropertyView
+from .models import PropertyListing, PropertyImage, PropertyView, State, LGA
 from .serializers import (
     PropertyListSerializer,
     PropertyDetailSerializer,
     PropertyCreateSerializer,
     PropertyImageSerializer,
     PropertyImageUploadSerializer,
+    StateSerializer,
+    LGASerializer,
 )
 
 
@@ -204,6 +206,27 @@ class PropertyViewSet(viewsets.ModelViewSet):
         GET /api/v1/properties/upcoming/
         Return upcoming estate properties.
         """
-        queryset = self.get_queryset().filter(listing_type='upcoming', status='available')[:10]
+        queryset = self.get_queryset().filter(property_type='estate', status='available')[:10]
         serializer = PropertyListSerializer(queryset, many=True, context={'request': request})
         return Response(serializer.data)
+
+
+class StateViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet for viewing states.
+    """
+    queryset = State.objects.all()
+    serializer_class = StateSerializer
+    permission_classes = [permissions.AllowAny]
+    pagination_class = None
+
+
+class LGAViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet for viewing LGAs.
+    """
+    queryset = LGA.objects.all()
+    serializer_class = LGASerializer
+    permission_classes = [permissions.AllowAny]
+    pagination_class = None
+    filterset_fields = ['state']

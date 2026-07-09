@@ -10,6 +10,8 @@ from . import views
 app_name = 'properties'
 
 router = DefaultRouter()
+router.register('states', views.StateViewSet, basename='state')
+router.register('lgas', views.LGAViewSet, basename='lga')
 router.register('', views.PropertyViewSet, basename='property')
 
 urlpatterns = [

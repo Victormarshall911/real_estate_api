@@ -8,7 +8,21 @@ from accounts.utils import get_clean_media_url
 from realtors.serializers import RealtorProfileSerializer
 from landlords.serializers import LandlordProfileSerializer
 from developers.serializers import DeveloperProfileSerializer
-from .models import PropertyListing, PropertyImage
+from .models import PropertyListing, PropertyImage, State, LGA
+
+
+class StateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = State
+        fields = ['id', 'name']
+
+
+class LGASerializer(serializers.ModelSerializer):
+    state_name = serializers.CharField(source='state.name', read_only=True)
+
+    class Meta:
+        model = LGA
+        fields = ['id', 'name', 'state', 'state_name']
 
 
 class PropertyImageSerializer(serializers.ModelSerializer):
@@ -45,6 +59,8 @@ class PropertyListSerializer(serializers.ModelSerializer):
     is_verified = serializers.SerializerMethodField()
     seller_role = serializers.SerializerMethodField()
     image_count = serializers.SerializerMethodField()
+    state_name = serializers.SerializerMethodField()
+    lga_name = serializers.SerializerMethodField()
 
     class Meta:
         model = PropertyListing
@@ -52,7 +68,9 @@ class PropertyListSerializer(serializers.ModelSerializer):
             'id', 'title', 'price', 'land_size', 'land_size_plots',
             'location', 'state', 'status', 'listing_type', 'is_featured', 'primary_image_url',
             'realtor_name', 'realtor_id', 'is_verified', 'seller_role', 'image_count',
-            'view_count', 'created_at',
+            'view_count', 'created_at', 'property_category', 'property_type',
+            'bedrooms', 'bathrooms', 'rent_frequency', 'state_ref', 'lga_ref',
+            'state_name', 'lga_name',
         ]
         read_only_fields = fields
 
@@ -98,6 +116,12 @@ class PropertyListSerializer(serializers.ModelSerializer):
     def get_primary_image_url(self, obj):
         return get_clean_media_url(obj.primary_image_url, self.context.get('request'))
 
+    def get_state_name(self, obj):
+        return obj.state_ref.name if obj.state_ref else obj.state
+
+    def get_lga_name(self, obj):
+        return obj.lga_ref.name if obj.lga_ref else obj.location
+
 
 class PropertyDetailSerializer(serializers.ModelSerializer):
     """
@@ -110,6 +134,10 @@ class PropertyDetailSerializer(serializers.ModelSerializer):
     developer = DeveloperProfileSerializer(read_only=True)
     land_size_plots = serializers.FloatField(read_only=True)
     primary_image_url = serializers.SerializerMethodField()
+    state_name = serializers.SerializerMethodField()
+    lga_name = serializers.SerializerMethodField()
+    state_ref = StateSerializer(read_only=True)
+    lga_ref = LGASerializer(read_only=True)
 
     class Meta:
         model = PropertyListing
@@ -119,11 +147,21 @@ class PropertyDetailSerializer(serializers.ModelSerializer):
             'status', 'listing_type', 'is_featured', 'video', 'primary_image_url',
             'images', 'realtor', 'landlord', 'developer',
             'view_count', 'created_at', 'updated_at',
+            'property_category', 'property_type', 'bedrooms', 'bathrooms', 'built_up_area',
+            'has_electricity', 'has_water', 'has_drainage', 'has_security', 'has_generator',
+            'has_c_of_o', 'has_survey_plan', 'rent_frequency', 'caution_fee', 'agency_fee', 'legal_fee',
+            'state_ref', 'lga_ref', 'state_name', 'lga_name',
         ]
         read_only_fields = ['id', 'view_count', 'created_at', 'updated_at']
 
     def get_primary_image_url(self, obj):
         return get_clean_media_url(obj.primary_image_url, self.context.get('request'))
+
+    def get_state_name(self, obj):
+        return obj.state_ref.name if obj.state_ref else obj.state
+
+    def get_lga_name(self, obj):
+        return obj.lga_ref.name if obj.lga_ref else obj.location
 
 
 class PropertyCreateSerializer(serializers.ModelSerializer):
@@ -144,6 +182,10 @@ class PropertyCreateSerializer(serializers.ModelSerializer):
             'title', 'description', 'price', 'land_size',
             'location', 'state', 'latitude', 'longitude',
             'status', 'listing_type', 'is_featured', 'video', 'uploaded_images',
+            'property_category', 'property_type', 'bedrooms', 'bathrooms', 'built_up_area',
+            'has_electricity', 'has_water', 'has_drainage', 'has_security', 'has_generator',
+            'has_c_of_o', 'has_survey_plan', 'rent_frequency', 'caution_fee', 'agency_fee', 'legal_fee',
+            'state_ref', 'lga_ref'
         ]
 
     def validate_price(self, value):
@@ -155,6 +197,31 @@ class PropertyCreateSerializer(serializers.ModelSerializer):
         if value <= 0:
             raise serializers.ValidationError('Land size must be greater than zero.')
         return value
+
+    def validate(self, attrs):
+        category = attrs.get('property_category', 'land')
+        listing_type = attrs.get('listing_type', 'sale')
+
+        if category == 'building':
+            if 'built_up_area' in attrs and attrs['built_up_area'] is not None and attrs['built_up_area'] <= 0:
+                raise serializers.ValidationError({'built_up_area': 'Built-up area must be greater than zero.'})
+        else:
+            # Land category doesn't need bedrooms/bathrooms/built area
+            attrs['bedrooms'] = None
+            attrs['bathrooms'] = None
+            attrs['built_up_area'] = None
+
+        if listing_type in ('rent', 'lease', 'short_let'):
+            if not attrs.get('rent_frequency'):
+                raise serializers.ValidationError({'rent_frequency': 'Rent frequency is required for rental listings.'})
+        else:
+            # Sale listing doesn't need rental frequencies or caution/agency/legal fees
+            attrs['rent_frequency'] = None
+            attrs['caution_fee'] = None
+            attrs['agency_fee'] = None
+            attrs['legal_fee'] = None
+
+        return attrs
 
     def create(self, validated_data):
         """Create property and attach any uploaded images."""
