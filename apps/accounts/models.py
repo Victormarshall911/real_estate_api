@@ -85,3 +85,28 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     def is_fully_verified(self):
         """True only when both KYC and profile completion are done."""
         return self.is_kyc_verified and self.is_profile_complete
+
+
+# ── Signals for Profile Auto-Creation ──────
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+
+@receiver(post_save, sender=CustomUser)
+def create_user_profile(sender, instance, created, **kwargs):
+    if created:
+        if instance.role == CustomUser.Role.REALTOR:
+            from realtors.models import RealtorProfile
+            RealtorProfile.objects.get_or_create(user=instance)
+        elif instance.role == CustomUser.Role.AGENT:
+            from agents.models import AgentProfile
+            AgentProfile.objects.get_or_create(user=instance)
+        elif instance.role == CustomUser.Role.ARCHITECT:
+            from architects.models import ArchitectProfile
+            ArchitectProfile.objects.get_or_create(user=instance)
+        elif instance.role == CustomUser.Role.LANDLORD:
+            from landlords.models import LandlordProfile
+            LandlordProfile.objects.get_or_create(user=instance)
+        elif instance.role == CustomUser.Role.DEVELOPER:
+            from developers.models import DeveloperProfile
+            DeveloperProfile.objects.get_or_create(user=instance)
+

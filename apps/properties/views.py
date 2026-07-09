@@ -43,7 +43,7 @@ class PropertyViewSet(viewsets.ModelViewSet):
         """
         return (
             PropertyListing.objects
-            .select_related('realtor__user', 'landlord__user', 'developer__user')
+            .select_related('realtor__user', 'landlord__user', 'developer__user', 'state_ref', 'lga_ref')
             .prefetch_related('images')
             .all()
         )
