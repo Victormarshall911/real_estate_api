@@ -230,6 +230,12 @@ class PropertyCreateSerializer(serializers.ModelSerializer):
         return value
 
     def validate(self, attrs):
+        # Only check on creation
+        if not self.instance:
+            uploaded_images = attrs.get('uploaded_images', [])
+            if not uploaded_images or len(uploaded_images) == 0:
+                raise serializers.ValidationError({'uploaded_images': 'At least one image is required to create a listing.'})
+
         category = attrs.get('property_category', 'land')
         listing_type = attrs.get('listing_type', 'sale')
 
