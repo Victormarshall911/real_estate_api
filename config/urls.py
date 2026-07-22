@@ -23,6 +23,7 @@ urlpatterns = [
     path('api/v1/developers/', include('developers.urls')),
     path('api/v1/chat/', include('chat.urls')),
     path('api/v1/escrows/', include('escrows.urls')),
+    path('api/v1/blog/', include('blog.urls')),
 ]
 
 if settings.DEBUG:
