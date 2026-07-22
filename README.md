@@ -3,10 +3,10 @@
 [![Django](https://img.shields.io/badge/Django-5.x-092E20?logo=django&logoColor=white)](https://www.djangoproject.com/)
 [![Django REST Framework](https://img.shields.io/badge/DRF-3.15-ff1709?logo=django&logoColor=white)](https://www.django-rest-framework.org/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16.x-316192?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
-[![Cloudinary](https://img.shields.io/badge/Cloudinary-Media_Storage-3448C5?logo=cloudinary&logoColor=white)](https://cloudinary.com/)
+[![Daphne](https://img.shields.io/badge/ASGI-Daphne-0B3C5D?logo=django&logoColor=white)](https://github.com/django/daphne)
 [![Render Deployment](https://img.shields.io/badge/Deployed_on-Render-46E3B7?logo=render&logoColor=black)](https://real-estate-api-orbx.onrender.com)
 
-**LandMarket API** is the core backend service powering Nigeria's premier real estate, agent, and architectural marketplace. Built with **Django REST Framework**, it provides scalable, secure, and resilient endpoints handling role-based authentication, property directory listing management, real estate agent portfolios, architect showcase directories, and media management.
+**LandMarket API** is the core backend engine powering Nigeria's premier real estate, agent, and architectural marketplace. Built with **Django REST Framework** and **Django Channels**, it provides scalable, secure, and resilient endpoints handling role-based authentication, real-time WebSocket chat connections, identity verification, property directories, wallet escrows, and blogging modules.
 
 🔌 **Live Production API Base URL**: [https://real-estate-api-orbx.onrender.com/api/v1/](https://real-estate-api-orbx.onrender.com/api/v1/)  
 🌐 **Client Frontend SPA**: [https://landmarketnig.vercel.app](https://landmarketnig.vercel.app)
@@ -17,30 +17,45 @@
 
 ### 🔐 Multi-Role Authentication & Security
 - **JWT Authentication**: Powered by `djangorestframework-simplejwt` with short-lived access tokens and refresh mechanisms.
-- **Role-Based Access Control (RBAC)**: Custom model roles distinguishing between `buyer`, `realtor`, `architect`, and `agent` workflows.
-- **Dynamic CORS & CSRF Protection**: Configured with regex origin allowances supporting dynamic preview environments and production vercel domains.
+- **Role-Based Access Control (RBAC)**: Custom model roles distinguishing between `buyer`, `realtor`, `architect`, `agent`, `landlord`, and `developer` workflows.
 
-### 📐 Directory & Profiles Ecosystem
-- **Architects & Urban Planners Engine**: Endpoints for studio onboarding, portfolio URLs, WhatsApp consultation formatting, and automated completion tagging.
-- **Realtor & Agent Directories**: Optimized queryset retrieval with serialized ratings, review aggregates, and location filtering.
-- **Profile Management**: Dual serializers (`UserSerializer` & `UserUpdateSerializer`) ensuring read-only integrity while allowing authenticated user detail updates and profile picture persistence.
+### 💬 Real-Time WebSockets (ASGI / Channels)
+- **Stateful Connections**: Async WebSocket consumers built on `channels` and `daphne` to handle instant chat messaging.
+- **Query String Authentication**: WebSocket connections authenticate token-based sessions directly via URL query params.
 
-### ☁️ Persistent Media Storage
-- **Cloudinary Integration**: Automatic media routing via `django-cloudinary-storage`. Uploaded profile photos, architectural blueprints, and property images are automatically stored on Cloudinary's CDN, ensuring 100% persistence across serverless container restarts.
-- **Absolute URI Resolution**: Serializer method fields guarantee absolute URLs across all endpoints whether running on local disk storage or cloud CDNs.
+### 🛡️ Identity Verification (KYC)
+- **Dojah Integration**: Real-time identification check API validating BVN (Bank Verification Number) and NIN (National Identification Number).
+- **Webhooks Listener**: Receives asynchronous verification success/failure webhooks directly from Dojah.
+
+### 💰 Virtual Escrow Wallet Engine
+- **Milestone Escrows**: Secure payment holding module. Connections fees or property transactions are deducted from the buyer's wallet and held in escrow.
+- **Milestone Dispute & Release**: Standard dispute filing and validation logic allowing users to resolve or release milestone funds.
+
+### 📐 Property listings directory
+- **Multi-Owner Listings**: Unified property creation schema supporting Realtors, Landlords, Developers, and certified Architects.
+- **View Deduplication**: Custom property view tracking logic to filter unique view count increments by IP per hour.
+
+### 📰 Blog Engine
+- **Auto-Read Time**: Custom tag, category, and markdown parsing that auto-calculates article read time.
+- **Role Permissions**: Staff, admins, and authenticated realtors can manage and publish drafts.
 
 ---
 
 ## 📡 Core API Modules (`/api/v1/`)
 
-| Endpoint Prefix | Description | Key Methods |
+| Endpoint Prefix | Description | Key Features / Methods |
 | :--- | :--- | :--- |
-| `/auth/` | Authentication, JWT tokens, account registration & profile edits | `POST /login/`, `GET/PATCH /profile/`, `PATCH /complete-profile/` |
-| `/properties/` | Property listings catalog, filtering, search & creation | `GET /properties/`, `GET /properties/<id>/` |
-| `/architects/` | Nigerian architects & planners directory, reviews & profile creation | `GET /architects/`, `POST /architects/me/` |
-| `/agents/` | Real estate field agents catalog and verification status | `GET /agents/` |
-| `/realtors/` | Professional real estate agencies and portfolio management | `GET /realtors/` |
-| `/kyc/` | Identity verification and KYC document submission workflows | `POST /kyc/submit/` |
+| `/auth/` | Authentication, registrations, profile completions, and details | `POST /login/`, `GET /profile/`, `PATCH /complete-profile/` |
+| `/properties/` | Property listings catalog, views, state/LGA filtering, and creations | `GET /properties/`, `POST /properties/`, `POST /properties/<id>/images/` |
+| `/agents/` | Agent profiles, locations coverage management, and connection setups | `GET /agents/profiles/`, `POST /agents/profiles/<id>/add_location/` |
+| `/architects/` | Accredited architects directory, profile setups, and ratings | `GET /architects/profiles/`, `POST /architects/profiles/me/` |
+| `/landlords/` | Private landlord directories, descriptions, and reviews | `GET /landlords/profiles/`, `POST /landlords/profiles/me/` |
+| `/developers/` | Estate developers layout showcases and directories | `GET /developers/profiles/`, `POST /developers/profiles/me/` |
+| `/wallets/` | Deposit modules, transaction logs, and balances | `GET /wallets/me/`, `POST /wallets/deposit/` |
+| `/escrows/` | Property escrow contracts, releases, and dispute declarations | `POST /escrows/`, `POST /escrows/<id>/release/` |
+| `/chat/` | Chat session details, message lists, and WebSocket routes | `GET /chat/sessions/`, `WS /ws/chat/<session_id>/` |
+| `/blog/` | Public blog posts, category configurations, and dashboard draft editors | `GET /blog/posts/`, `POST /blog/posts/`, `GET /blog/categories/` |
+| `/kyc/` | BVN/NIN identity check submissions and Webhook interfaces | `POST /kyc/initiate/`, `POST /kyc/webhook/` |
 
 ---
 
@@ -48,7 +63,7 @@
 
 ### Prerequisites
 - **Python 3.10+**
-- **PostgreSQL** (or SQLite for local development)
+- **SQLite** (or PostgreSQL/Neon for live operations)
 
 ### 1. Clone & Virtual Environment Setup
 ```bash
@@ -70,11 +85,6 @@ DEBUG=True
 SECRET_KEY=your-development-secret-key
 DATABASE_URL=sqlite:///db.sqlite3
 FRONTEND_URL=http://localhost:5173
-
-# Optional: Cloudinary Storage for local media upload testing
-CLOUDINARY_CLOUD_NAME=your_cloud_name
-CLOUDINARY_API_KEY=your_api_key
-CLOUDINARY_API_SECRET=your_api_secret
 ```
 
 ### 4. Database Migrations
@@ -82,40 +92,39 @@ CLOUDINARY_API_SECRET=your_api_secret
 python manage.py migrate
 ```
 
-### 5. Create Superuser (Admin Dashboard)
+### 5. Create Superuser (Admin Dashboard Access)
 ```bash
 python manage.py createsuperuser
 ```
 
-### 6. Run Development Server
+### 6. Run Development server (ASGI Daphne)
+To enable full WebSocket support (chat), run the server using Daphne:
 ```bash
-python manage.py runserver 0.0.0.0:8000
+daphne -p 8002 config.asgi:application
 ```
-API endpoints will be accessible at `http://localhost:8000/api/v1/`.
+API endpoints will be accessible at `http://localhost:8002/api/v1/`.
 
 ---
 
 ## 📁 Project Structure
 
 ```text
-real_estate_api/
-├── apps/
-│   ├── accounts/       # User models, authentication, JWT views & profile update serializers
-│   ├── agents/         # Agent profiles & directory views
-│   ├── architects/     # Architect models, serializers & review engines
-│   ├── properties/     # Real estate listing models & filtering viewsets
-│   ├── realtors/       # Realtor agency profiles & ratings
-│   └── wallets/        # User wallet & financial transaction tracking
-├── config/
-│   ├── settings/       # Split settings (base.py, dev.py, prod.py)
-│   ├── urls.py         # Global route dispatcher & media serving fallback
-│   └── wsgi.py         # WSGI server configuration for Render deployment
-├── manage.py
-└── requirements.txt
+apps/
+├── accounts/         # Custom user models, JWT tokens, & RBAC profiles
+├── agents/           # Agent locations pricing, connections & completions
+├── architects/       # Accredited architect profiles & reviews
+├── blog/             # Categories, tags, & markdown draft posts
+├── chat/             # Chat message models & WebSocket routing consumers
+├── developers/       # Developer layouts & showcase listings
+├── escrows/          # Payment holds, milestones & disputes
+├── kyc/              # Dojah BVN/NIN verification services & webhooks
+├── landlords/        # Landlord profiles & reviews
+├── payments/         # Paystack transaction logging
+├── properties/       # Property listings, image uploads & unique view counts
+├── subscriptions/    # Listing plans & limitations
+└── wallets/          # Wallet transactions & deposits
+config/
+├── asgi.py           # ASGI configuration (Daphne/Channels setup)
+├── settings/         # Base, local, dev & production settings init
+└── urls.py           # Global versioned route entries
 ```
-
----
-
-## 📄 License
-
-Proprietary backend system for **LandMarket Nigeria**. All rights reserved.
