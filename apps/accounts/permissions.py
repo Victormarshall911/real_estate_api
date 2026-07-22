@@ -29,6 +29,9 @@ class IsOwnerOrReadOnly(permissions.BasePermission):
         if hasattr(obj, 'developer') and obj.developer:
             return obj.developer.user == request.user
 
+        if hasattr(obj, 'architect') and obj.architect:
+            return obj.architect.user == request.user
+
         return False
 
 
@@ -48,15 +51,15 @@ class IsRealtorOnly(permissions.BasePermission):
 
 class CanListProperties(permissions.BasePermission):
     """
-    Allows access to users who are realtors, landlords, or developers.
+    Allows access to users who are realtors, landlords, developers, or architects.
     """
-    message = 'Only realtors, landlords, or developers can perform this action.'
+    message = 'Only realtors, landlords, developers, or architects can perform this action.'
 
     def has_permission(self, request, view):
         return (
             request.user
             and request.user.is_authenticated
-            and request.user.role in ('realtor', 'landlord', 'developer')
+            and request.user.role in ('realtor', 'landlord', 'developer', 'architect')
         )
 
 

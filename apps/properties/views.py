@@ -47,7 +47,7 @@ class PropertyViewSet(viewsets.ModelViewSet):
         """
         return (
             PropertyListing.objects
-            .select_related('realtor__user', 'landlord__user', 'developer__user', 'state_ref', 'lga_ref')
+            .select_related('realtor__user', 'landlord__user', 'developer__user', 'architect__user', 'state_ref', 'lga_ref')
             .prefetch_related('images')
             .all()
         )
@@ -139,6 +139,8 @@ class PropertyViewSet(viewsets.ModelViewSet):
             owner_user = property_listing.landlord.user
         elif property_listing.developer:
             owner_user = property_listing.developer.user
+        elif property_listing.architect:
+            owner_user = property_listing.architect.user
 
         if owner_user != request.user:
             return Response(
@@ -174,7 +176,7 @@ class PropertyViewSet(viewsets.ModelViewSet):
     def my_listings(self, request):
         """
         GET /api/v1/properties/my-listings/
-        Return all listings owned by the authenticated seller (realtor, landlord, or developer).
+        Return all listings owned by the authenticated seller (realtor, landlord, developer, or architect).
         """
         user = request.user
         queryset = self.get_queryset()
@@ -184,6 +186,8 @@ class PropertyViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(landlord=user.landlord_profile)
         elif user.role == 'developer' and hasattr(user, 'developer_profile'):
             queryset = queryset.filter(developer=user.developer_profile)
+        elif user.role == 'architect' and hasattr(user, 'architect_profile'):
+            queryset = queryset.filter(architect=user.architect_profile)
         else:
             return Response(
                 {'error': 'You do not have a seller profile.'},
@@ -231,6 +235,8 @@ class PropertyViewSet(viewsets.ModelViewSet):
         elif property_listing.landlord and property_listing.landlord.user == user:
             is_owner = True
         elif property_listing.developer and property_listing.developer.user == user:
+            is_owner = True
+        elif property_listing.architect and property_listing.architect.user == user:
             is_owner = True
             
         if not is_owner and not user.is_staff:

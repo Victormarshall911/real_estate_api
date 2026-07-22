@@ -100,6 +100,14 @@ class PropertyListing(models.Model):
         null=True,
         blank=True,
     )
+    architect = models.ForeignKey(
+        'architects.ArchitectProfile',
+        on_delete=models.CASCADE,
+        related_name='properties',
+        null=True,
+        blank=True,
+    )
+
     title = models.CharField(max_length=300, db_index=True)
     description = models.TextField(
         help_text='Supports markdown formatting for rich property descriptions.'

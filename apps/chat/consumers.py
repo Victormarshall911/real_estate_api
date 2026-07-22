@@ -99,9 +99,20 @@ class ChatConsumer(AsyncWebsocketConsumer):
     @database_sync_to_async
     def verify_session_access(self, session_id, user):
         try:
-            session = ChatSession.objects.select_related('connection__user', 'connection__agent__user').get(id=session_id)
-            if session.connection.user == user or session.connection.agent.user == user:
+            session = ChatSession.objects.select_related(
+                'connection__user', 'connection__agent__user', 'buyer', 'seller'
+            ).get(id=session_id)
+
+            # Connection-based session (agent chat)
+            if session.connection is not None:
+                if session.connection.user == user or session.connection.agent.user == user:
+                    return True
+                return False
+
+            # Direct buyer ↔ seller chat
+            if session.buyer == user or session.seller == user:
                 return True
+
             return False
         except ChatSession.DoesNotExist:
             return False
