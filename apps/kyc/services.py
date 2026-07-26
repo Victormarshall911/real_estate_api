@@ -3,6 +3,7 @@ Dojah KYC API service wrapper.
 Handles BVN and NIN verification calls.
 """
 import logging
+import re
 
 import requests
 from django.conf import settings
@@ -12,11 +13,14 @@ logger = logging.getLogger(__name__)
 DOJAH_SANDBOX_URL = 'https://sandbox.dojah.io'
 DOJAH_PRODUCTION_URL = 'https://api.dojah.io'
 
+# Nigerian BVN and NIN are exactly 11 digits
+NIN_BVN_PATTERN = re.compile(r'^\d{11}$')
+
 
 class DojahService:
     """
     Service class for interacting with the Dojah KYC API.
-    Uses sandbox in development, production endpoint otherwise.
+    Uses sandbox URL in development, production endpoint otherwise.
     """
 
     def __init__(self):
@@ -37,16 +41,37 @@ class DojahService:
         """Check if Dojah credentials are set."""
         return bool(self.app_id and self.secret_key)
 
+    def _validate_format(self, id_number, id_type='BVN/NIN'):
+        """
+        Validate that the number is exactly 11 digits.
+        Returns (is_valid, error_message).
+        """
+        cleaned = str(id_number).strip()
+        if not NIN_BVN_PATTERN.match(cleaned):
+            return False, f'Invalid {id_type}: must be exactly 11 digits with no spaces or letters.'
+        return True, None
+
     def verify_bvn(self, bvn, customer_reference=''):
         """
-        Verify a Bank Verification Number.
+        Verify a Bank Verification Number (BVN).
         Returns dict with 'success' bool and 'data' or 'error'.
         """
         cleaned = str(bvn).strip().replace('-', '').replace(' ', '')
+
+        # Validate format first (always, regardless of credentials)
+        is_valid, fmt_error = self._validate_format(cleaned, 'BVN')
+        if not is_valid:
+            return {'success': False, 'error': fmt_error}
+
         if not self._is_configured():
-            if getattr(settings, 'DEBUG', True) or len(cleaned) == 11:
-                return self._mock_success('bvn', cleaned)
-            return {'success': False, 'error': 'KYC service is not configured. Live API keys are required.'}
+            logger.warning('Dojah BVN verification attempted but API credentials are not configured.')
+            return {
+                'success': False,
+                'error': (
+                    'Identity verification service is not yet configured. '
+                    'Please contact support to complete KYC verification.'
+                ),
+            }
 
         try:
             response = requests.get(
@@ -61,26 +86,33 @@ class DojahService:
             data = response.json()
             if response.status_code == 200:
                 return {'success': True, 'data': data}
-            # Fallback for local/development if live API fails but 11 digits are provided
-            if getattr(settings, 'DEBUG', True) or len(cleaned) == 11:
-                return self._mock_success('bvn', cleaned)
-            return {'success': False, 'error': data.get('error', 'Verification failed.')}
+            error_msg = data.get('error', '') or data.get('message', 'BVN verification failed. Please check the number and try again.')
+            return {'success': False, 'error': error_msg}
         except requests.RequestException as e:
             logger.error(f'Dojah BVN verification failed: {e}')
-            if getattr(settings, 'DEBUG', True) or len(cleaned) == 11:
-                return self._mock_success('bvn', cleaned)
-            return {'success': False, 'error': 'KYC service temporarily unavailable.'}
+            return {'success': False, 'error': 'Verification service is temporarily unavailable. Please try again shortly.'}
 
     def verify_nin(self, nin, customer_reference=''):
         """
-        Verify a National Identification Number.
+        Verify a National Identification Number (NIN).
         Returns dict with 'success' bool and 'data' or 'error'.
         """
         cleaned = str(nin).strip().replace('-', '').replace(' ', '')
+
+        # Validate format first (always, regardless of credentials)
+        is_valid, fmt_error = self._validate_format(cleaned, 'NIN')
+        if not is_valid:
+            return {'success': False, 'error': fmt_error}
+
         if not self._is_configured():
-            if getattr(settings, 'DEBUG', True) or len(cleaned) == 11:
-                return self._mock_success('nin', cleaned)
-            return {'success': False, 'error': 'KYC service is not configured. Live API keys are required.'}
+            logger.warning('Dojah NIN verification attempted but API credentials are not configured.')
+            return {
+                'success': False,
+                'error': (
+                    'Identity verification service is not yet configured. '
+                    'Please contact support to complete KYC verification.'
+                ),
+            }
 
         try:
             response = requests.get(
@@ -95,29 +127,8 @@ class DojahService:
             data = response.json()
             if response.status_code == 200:
                 return {'success': True, 'data': data}
-            if getattr(settings, 'DEBUG', True) or len(cleaned) == 11:
-                return self._mock_success('nin', cleaned)
-            return {'success': False, 'error': data.get('error', 'Verification failed.')}
+            error_msg = data.get('error', '') or data.get('message', 'NIN verification failed. Please check the number and try again.')
+            return {'success': False, 'error': error_msg}
         except requests.RequestException as e:
             logger.error(f'Dojah NIN verification failed: {e}')
-            if getattr(settings, 'DEBUG', True) or len(cleaned) == 11:
-                return self._mock_success('nin', cleaned)
-            return {'success': False, 'error': 'KYC service temporarily unavailable.'}
-
-    def _mock_success(self, verification_type, id_number):
-        """
-        Returns a mock success response when Dojah credentials are not configured.
-        Used for local development only.
-        """
-        logger.info(f'Dojah not configured — returning mock KYC success for {verification_type}')
-        return {
-            'success': True,
-            'data': {
-                'entity': {
-                    'first_name': 'Test',
-                    'last_name': 'User',
-                    verification_type: id_number,
-                },
-                'mock': True,
-            },
-        }
+            return {'success': False, 'error': 'Verification service is temporarily unavailable. Please try again shortly.'}
