@@ -54,7 +54,7 @@ class KYCVerificationAdmin(admin.ModelAdmin):
         return format_html(
             '<div style="display: flex; align-items: center; gap: 6px;">'
             '<a href="{}" target="_blank">'
-            '<img src="{}" style="max-height: 40px; max-width: 70px; object-fit: cover; border-radius: 6px; border: 1px solid #cbd5e1;" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline';" />'
+            '<img src="{}" alt="Doc" style="max-height: 40px; max-width: 70px; object-fit: cover; border-radius: 6px; border: 1px solid #cbd5e1;" onerror="this.style.display=\'none\'; this.nextElementSibling.style.display=\'inline\';" />'
             '<span style="display: none; padding: 3px 6px; background: #f1f5f9; color: #475569; border-radius: 4px; font-size: 10px; font-weight: bold;">📎 File</span>'
             '</a>'
             '<a href="{}" target="_blank" style="font-size: 11px; color: #2563eb; font-weight: bold; text-decoration: underline;">View ↗</a>'
@@ -90,7 +90,7 @@ class KYCVerificationAdmin(admin.ModelAdmin):
         return format_html(
             '<div style="padding: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">'
             '<a href="{}" target="_blank">'
-            '<img src="{}" style="max-height: 450px; max-width: 100%; border-radius: 8px; border: 1px solid #cbd5e1;" onerror="this.alt='Image failed to load directly — click link below to open';" />'
+            '<img src="{}" alt="KYC Document Preview" style="max-height: 450px; max-width: 100%; border-radius: 8px; border: 1px solid #cbd5e1;" />'
             '</a>'
             '<p style="margin-top: 10px;">'
             '<a href="{}" target="_blank" style="display: inline-block; padding: 6px 14px; background: #2563eb; color: #fff; border-radius: 6px; font-weight: bold; text-decoration: none; font-size: 12px;">'
