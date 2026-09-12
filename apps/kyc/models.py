@@ -4,6 +4,7 @@ KYC Verification model — tracks identity and corporate verification via ID doc
 import uuid
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
 
 
 class KYCVerification(models.Model):
@@ -96,3 +97,27 @@ class KYCVerification(models.Model):
         if self.verification_type == self.VerificationType.CAC_CERTIFICATE:
             return 'cac_verified'
         return 'id_verified'
+
+    def save(self, *args, **kwargs):
+        is_verified = (self.status == self.Status.VERIFIED)
+        if is_verified and not self.verified_at:
+            self.verified_at = timezone.now()
+            
+        super().save(*args, **kwargs)
+
+        # Synchronize verification status across User model and role profiles
+        user = self.user
+        if user.is_kyc_verified != is_verified:
+            user.is_kyc_verified = is_verified
+            user.save(update_fields=['is_kyc_verified'])
+
+        # Update all role profiles
+        profile_roles = [
+            'realtor_profile', 'developer_profile', 'landlord_profile',
+            'agent_profile', 'architect_profile'
+        ]
+        for role_attr in profile_roles:
+            profile = getattr(user, role_attr, None)
+            if profile and hasattr(profile, 'is_verified') and profile.is_verified != is_verified:
+                profile.is_verified = is_verified
+                profile.save(update_fields=['is_verified'])

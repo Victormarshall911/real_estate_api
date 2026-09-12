@@ -6,6 +6,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
 from . import views
+from .views_ai import AIAssistantSearchView
 
 app_name = 'properties'
 
@@ -16,5 +17,6 @@ router.register('saved-searches', views.SavedSearchViewSet, basename='saved-sear
 router.register('', views.PropertyViewSet, basename='property')
 
 urlpatterns = [
+    path('ai-search/', AIAssistantSearchView.as_view(), name='property-ai-search'),
     path('', include(router.urls)),
 ]

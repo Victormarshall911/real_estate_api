@@ -8,7 +8,7 @@ User = get_user_model()
 
 class Wallet(models.Model):
     """
-    Virtual wallet for users to hold funds (e.g. for connection fees or escrow).
+    Virtual wallet for users to hold funds (e.g. for connection fees, inspection, or escrow).
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.OneToOneField(
@@ -24,19 +24,36 @@ class Wallet(models.Model):
         db_table = 'wallets'
 
     def __str__(self):
-        return f"{self.user.email} - Balance: {self.balance}"
+        return f"{self.user.email} - Balance: ₦{self.balance:,.2f}"
+
+    @property
+    def locked_in_escrow(self):
+        """Calculates total funds currently held in active escrow transactions for this buyer."""
+        from escrows.models import EscrowTransaction
+        escrows = EscrowTransaction.objects.filter(
+            buyer=self.user,
+            status__in=['escrowed', 'in_mediation']
+        )
+        total = sum((e.amount for e in escrows), Decimal('0.00'))
+        return total
 
 
 class WalletTransaction(models.Model):
     """
-    Records any credit or debit to a wallet.
+    Records any credit or debit to a wallet, including bank withdrawals and virtual account deposits.
     """
     TRANSACTION_TYPES = (
-        ('deposit', 'Deposit'),           # Adding money to wallet via payment gateway
-        ('withdrawal', 'Withdrawal'),     # Cashing out to bank account
+        ('deposit', 'Deposit'),           # Adding money to wallet via payment gateway or bank transfer
+        ('withdrawal', 'Withdrawal'),     # Cashing out to Nigerian bank account
         ('payment', 'Payment'),           # Paying for a service (e.g. escrow/connection fee)
         ('refund', 'Refund'),             # Refunding an escrow or payment
-        ('receipt', 'Receipt'),           # Receiving money from an escrow/connection
+        ('receipt', 'Receipt'),           # Receiving money from an escrow payout
+    )
+
+    STATUS_CHOICES = (
+        ('pending', 'Pending'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed'),
     )
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -49,6 +66,13 @@ class WalletTransaction(models.Model):
     amount = models.DecimalField(max_digits=12, decimal_places=2)
     reference = models.CharField(max_length=100, unique=True, help_text="Unique external or internal reference")
     description = models.TextField(blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='completed')
+
+    # Bank payout metadata
+    bank_name = models.CharField(max_length=100, blank=True, default='')
+    account_number = models.CharField(max_length=20, blank=True, default='')
+    account_name = models.CharField(max_length=150, blank=True, default='')
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -56,4 +80,4 @@ class WalletTransaction(models.Model):
         ordering = ['-created_at']
 
     def __str__(self):
-        return f"{self.transaction_type.capitalize()} - {self.amount} ({self.wallet.user.email})"
+        return f"{self.transaction_type.capitalize()} - ₦{self.amount:,.2f} ({self.wallet.user.email})"

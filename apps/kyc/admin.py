@@ -29,7 +29,6 @@ class KYCVerificationAdmin(admin.ModelAdmin):
         if not obj.document_image:
             return None
         url = obj.document_image.url
-        # If running on Render behind HTTPS proxy, ensure https scheme
         if url.startswith('http://') and not url.startswith('http://localhost'):
             url = url.replace('http://', 'https://', 1)
         return url
@@ -115,12 +114,25 @@ class KYCVerificationAdmin(admin.ModelAdmin):
                     pass
                 obj.document_image = None
 
-            # Sync verified status to user role profiles
+            # Sync verified status to user and role profiles
             user = obj.user
-            for profile_attr in ['realtor', 'developer', 'landlord', 'agent', 'architect']:
+            user.is_kyc_verified = True
+            user.save(update_fields=['is_kyc_verified'])
+
+            for profile_attr in ['realtor_profile', 'developer_profile', 'landlord_profile', 'agent_profile', 'architect_profile']:
                 profile = getattr(user, profile_attr, None)
                 if profile and hasattr(profile, 'is_verified'):
                     profile.is_verified = True
+                    profile.save(update_fields=['is_verified'])
+
+        elif obj.status in [KYCVerification.Status.FAILED, KYCVerification.Status.EXPIRED]:
+            user = obj.user
+            user.is_kyc_verified = False
+            user.save(update_fields=['is_kyc_verified'])
+            for profile_attr in ['realtor_profile', 'developer_profile', 'landlord_profile', 'agent_profile', 'architect_profile']:
+                profile = getattr(user, profile_attr, None)
+                if profile and hasattr(profile, 'is_verified'):
+                    profile.is_verified = False
                     profile.save(update_fields=['is_verified'])
 
         super().save_model(request, obj, form, change)
@@ -143,9 +155,12 @@ class KYCVerificationAdmin(admin.ModelAdmin):
 
             verification.save(update_fields=['status', 'verified_at', 'document_image'])
 
-            # Sync verified status to associated user profile roles
+            # Sync verified status to user and associated user profile roles
             user = verification.user
-            for profile_attr in ['realtor', 'developer', 'landlord', 'agent', 'architect']:
+            user.is_kyc_verified = True
+            user.save(update_fields=['is_kyc_verified'])
+
+            for profile_attr in ['realtor_profile', 'developer_profile', 'landlord_profile', 'agent_profile', 'architect_profile']:
                 profile = getattr(user, profile_attr, None)
                 if profile and hasattr(profile, 'is_verified'):
                     profile.is_verified = True
@@ -154,11 +169,23 @@ class KYCVerificationAdmin(admin.ModelAdmin):
 
         self.message_user(
             request,
-            f'Successfully approved and verified {count} KYC submissions. Original document files were automatically and securely deleted for user privacy.'
+            f'Successfully approved and verified {count} KYC submissions. User profiles and badges were activated, and document files securely deleted.'
         )
     approve_verifications.short_description = 'Approve selected KYC submissions (Awards Verified Badge & Deletes Document)'
 
     def reject_verifications(self, request, queryset):
-        count = queryset.update(status=KYCVerification.Status.FAILED)
+        count = 0
+        for verification in queryset:
+            verification.status = KYCVerification.Status.FAILED
+            verification.save(update_fields=['status'])
+            user = verification.user
+            user.is_kyc_verified = False
+            user.save(update_fields=['is_kyc_verified'])
+            for profile_attr in ['realtor_profile', 'developer_profile', 'landlord_profile', 'agent_profile', 'architect_profile']:
+                profile = getattr(user, profile_attr, None)
+                if profile and hasattr(profile, 'is_verified'):
+                    profile.is_verified = False
+                    profile.save(update_fields=['is_verified'])
+            count += 1
         self.message_user(request, f'Marked {count} KYC submissions as rejected.')
     reject_verifications.short_description = 'Reject selected KYC submissions'

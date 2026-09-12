@@ -1,5 +1,5 @@
 """
-Property Listing, Property Image, and Property View models.
+Property Listing, Property Image, Property View, Documents, and Fraud Reporting models.
 Includes full-text search indexing via PostgreSQL.
 """
 import uuid
@@ -10,8 +10,6 @@ from django.db import models
 from django.conf import settings
 
 from realtors.models import RealtorProfile
-
-
 
 
 class State(models.Model):
@@ -44,13 +42,13 @@ class LGA(models.Model):
 
 class PropertyListing(models.Model):
     """
-    A land property listing created by a verified realtor.
-    Supports full-text search via PostgreSQL SearchVector.
+    A land/building property listing. Supports full-text search via PostgreSQL SearchVector.
     """
 
     class Status(models.TextChoices):
         AVAILABLE = 'available', 'Available'
         SOLD = 'sold', 'Sold'
+        UNDER_REVIEW = 'under_review', 'Under Investigation / Flagged'
 
     class PropertyCategory(models.TextChoices):
         LAND = 'land', 'Land'
@@ -242,6 +240,11 @@ class PropertyListing(models.Model):
         help_text='If true, property appears in the featured carousel.',
         db_index=True,
     )
+    is_under_review = models.BooleanField(
+        default=False,
+        help_text='Flagged automatically if multiple community fraud reports are filed.',
+        db_index=True,
+    )
     video = models.FileField(
         upload_to='properties/videos/',
         null=True,
@@ -270,14 +273,12 @@ class PropertyListing(models.Model):
 
     @property
     def land_size_plots(self):
-        """Convert square meters to plots (1 plot ≈ 648 sqm in Nigeria)."""
         if self.land_size:
             return round(float(self.land_size) / 648, 2)
         return 0
 
     @property
     def primary_image_url(self):
-        """Return URL of the primary image, or the first image."""
         primary = self.images.filter(is_primary=True).first()
         if primary:
             return primary.image.url if primary.image else None
@@ -286,25 +287,15 @@ class PropertyListing(models.Model):
 
 
 class PropertyImage(models.Model):
-    """
-    Individual image attached to a property listing.
-    Images are stored on Cloudinary CDN via django-cloudinary-storage.
-    """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     property_listing = models.ForeignKey(
         PropertyListing,
         on_delete=models.CASCADE,
         related_name='images',
     )
-    image = models.ImageField(
-        upload_to='properties/images/',
-        help_text='Uploaded to Cloudinary CDN automatically.',
-    )
+    image = models.ImageField(upload_to='properties/images/')
     caption = models.CharField(max_length=200, blank=True, default='')
-    is_primary = models.BooleanField(
-        default=False,
-        help_text='The primary image is used as the listing thumbnail.',
-    )
+    is_primary = models.BooleanField(default=False)
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -313,14 +304,8 @@ class PropertyImage(models.Model):
         verbose_name_plural = 'Property Images'
         ordering = ['-is_primary', 'uploaded_at']
 
-    def __str__(self):
-        return f'Image for {self.property_listing.title} ({"Primary" if self.is_primary else "Secondary"})'
-
 
 class PropertyView(models.Model):
-    """
-    Tracks individual views/visits to a property listing for analytics.
-    """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     property_listing = models.ForeignKey(
         PropertyListing,
@@ -333,18 +318,10 @@ class PropertyView(models.Model):
 
     class Meta:
         db_table = 'property_views'
-        verbose_name = 'Property View'
-        verbose_name_plural = 'Property Views'
         ordering = ['-viewed_at']
-
-    def __str__(self):
-        return f'View on {self.property_listing.title} at {self.viewed_at}'
 
 
 class PropertyDocument(models.Model):
-    """
-    Legal documents uploaded for a property listing (e.g. C of O, Survey Plan).
-    """
     class DocumentType(models.TextChoices):
         C_OF_O = 'c_of_o', 'Certificate of Occupancy'
         DEED = 'deed_of_assignment', 'Deed of Assignment'
@@ -369,18 +346,10 @@ class PropertyDocument(models.Model):
 
     class Meta:
         db_table = 'property_documents'
-        verbose_name = 'Property Legal Document'
-        verbose_name_plural = 'Property Legal Documents'
         ordering = ['uploaded_at']
-
-    def __str__(self):
-        return f'{self.get_document_type_display()} for {self.property_listing.title}'
 
 
 class VerificationRequest(models.Model):
-    """
-    A buyer or seller request for LandMarket legal team to verify title documents.
-    """
     class Status(models.TextChoices):
         PENDING = 'pending', 'Pending Search'
         IN_PROGRESS = 'in_progress', 'Search In Progress'
@@ -410,18 +379,10 @@ class VerificationRequest(models.Model):
 
     class Meta:
         db_table = 'property_verification_requests'
-        verbose_name = 'Title Verification Request'
-        verbose_name_plural = 'Title Verification Requests'
         ordering = ['-created_at']
-
-    def __str__(self):
-        return f'Search Request by {self.requester.email} on {self.property_listing.title} ({self.get_status_display()})'
 
 
 class PropertyAnalyticsEvent(models.Model):
-    """
-    Tracks analytical events like views and lead generation clicks for a property.
-    """
     class EventType(models.TextChoices):
         VIEW = 'view', 'Page View'
         WHATSAPP_CLICK = 'whatsapp_click', 'WhatsApp Click'
@@ -451,25 +412,17 @@ class PropertyAnalyticsEvent(models.Model):
 
     class Meta:
         db_table = 'property_analytics_events'
-        verbose_name = 'Property Analytics Event'
-        verbose_name_plural = 'Property Analytics Events'
         ordering = ['-created_at']
-
-    def __str__(self):
-        return f'{self.get_event_type_display()} on {self.property_listing.title}'
 
 
 class SavedSearch(models.Model):
-    """
-    Stores user filter parameters for saved searches and automatic notification alerts.
-    """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name='saved_searches',
     )
-    title = models.CharField(max_length=255, help_text="e.g. Lekki Residential Plots under ₦100M")
+    title = models.CharField(max_length=255)
     state = models.ForeignKey(
         State,
         on_delete=models.SET_NULL,
@@ -492,9 +445,62 @@ class SavedSearch(models.Model):
 
     class Meta:
         db_table = 'saved_searches'
-        verbose_name = 'Saved Search'
-        verbose_name_plural = 'Saved Searches'
+        ordering = ['-created_at']
+
+
+class PropertyReport(models.Model):
+    """
+    Stores community fraud, dispute, and fake listing reports with auto-moderation support.
+    """
+    class Reason(models.TextChoices):
+        SUSPICIOUS_PAYMENT = 'suspicious_payment', 'Demanded Direct / Offline Payment'
+        FAKE_AGENT = 'fake_agent', 'Fake Agent / Impersonation'
+        DUPLICATE_LISTING = 'duplicate_listing', 'Duplicate / Stolen Photos'
+        DISPUTED_LAND = 'disputed_land', 'Disputed Land / Omo Onile Conflict'
+        ALREADY_SOLD = 'already_sold', 'Already Sold / Unavailable'
+        PRICE_BAIT = 'price_bait', 'Price Baiting / Misleading Price'
+        OTHER = 'other', 'Other Fraud / Safety Concern'
+
+    class Status(models.TextChoices):
+        PENDING = 'pending', 'Pending Audit'
+        UNDER_REVIEW = 'under_review', 'Under Investigation'
+        RESOLVED = 'resolved', 'Resolved / Action Taken'
+        DISMISSED = 'dismissed', 'Dismissed'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    property_listing = models.ForeignKey(
+        PropertyListing,
+        on_delete=models.CASCADE,
+        related_name='reports',
+    )
+    reporter = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='property_reports',
+    )
+    contact_email = models.EmailField(blank=True, default='')
+    reason = models.CharField(
+        max_length=30,
+        choices=Reason.choices,
+        default=Reason.OTHER,
+    )
+    description = models.TextField(help_text='Evidence details submitted by reporter.')
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PENDING,
+        db_index=True,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'property_reports'
+        verbose_name = 'Property Fraud Report'
+        verbose_name_plural = 'Property Fraud Reports'
         ordering = ['-created_at']
 
     def __str__(self):
-        return f'{self.title} ({self.user.email})'
+        return f'Report on {self.property_listing.title} ({self.get_reason_display()})'

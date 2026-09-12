@@ -1,21 +1,10 @@
-"""
-Filters for property listings using django-filter and PostgreSQL full-text search.
-"""
 from django.contrib.postgres.search import SearchQuery, SearchRank, SearchVector
+from django.db import models
 from django_filters import rest_framework as filters
-
 from .models import PropertyListing
 
 
 class PropertyFilter(filters.FilterSet):
-    """
-    Filterset for PropertyListing supporting:
-    - min_price / max_price range
-    - min_size (minimum land size in sqm)
-    - location (partial match on location or state)
-    - search (full-text search on title + description via PostgreSQL)
-    - status (available / sold)
-    """
     min_price = filters.NumberFilter(field_name='price', lookup_expr='gte')
     max_price = filters.NumberFilter(field_name='price', lookup_expr='lte')
     min_size = filters.NumberFilter(field_name='land_size', lookup_expr='gte')
@@ -24,8 +13,6 @@ class PropertyFilter(filters.FilterSet):
     search = filters.CharFilter(method='filter_search')
     status = filters.ChoiceFilter(choices=PropertyListing.Status.choices)
     state = filters.CharFilter(field_name='state', lookup_expr='icontains')
-    
-    # New filters for Phase 1
     property_category = filters.CharFilter(field_name='property_category')
     property_type = filters.CharFilter(field_name='property_type')
     bedrooms = filters.NumberFilter(field_name='bedrooms')
@@ -34,26 +21,34 @@ class PropertyFilter(filters.FilterSet):
     rent_frequency = filters.CharFilter(field_name='rent_frequency')
     state_ref = filters.NumberFilter(field_name='state_ref')
     lga_ref = filters.NumberFilter(field_name='lga_ref')
+    verified_only = filters.BooleanFilter(method='filter_verified_only')
 
     class Meta:
         model = PropertyListing
         fields = [
             'min_price', 'max_price', 'min_size', 'max_size', 'location', 'search',
             'status', 'state', 'property_category', 'property_type', 'bedrooms',
-            'bedrooms_gte', 'bathrooms', 'rent_frequency', 'state_ref', 'lga_ref'
+            'bedrooms_gte', 'bathrooms', 'rent_frequency', 'state_ref', 'lga_ref',
+            'verified_only'
         ]
 
     def filter_location(self, queryset, name, value):
-        """Filter by location or state (case-insensitive partial match)."""
         return queryset.filter(
             models.Q(location__icontains=value) | models.Q(state__icontains=value)
         )
 
+    def filter_verified_only(self, queryset, name, value):
+        if value:
+            return queryset.filter(
+                models.Q(is_title_verified=True) |
+                models.Q(documents__is_verified=True) |
+                models.Q(realtor__is_verified=True) |
+                models.Q(landlord__is_verified=True) |
+                models.Q(developer__is_verified=True)
+            ).distinct()
+        return queryset
+
     def filter_search(self, queryset, name, value):
-        """
-        Full-text search using PostgreSQL SearchVector.
-        Falls back to icontains for SQLite in development.
-        """
         try:
             search_vector = SearchVector('title', weight='A') + SearchVector('description', weight='B')
             search_query = SearchQuery(value)
@@ -64,11 +59,6 @@ class PropertyFilter(filters.FilterSet):
                 .order_by('-rank')
             )
         except Exception:
-            # Fallback for SQLite (development)
             return queryset.filter(
                 models.Q(title__icontains=value) | models.Q(description__icontains=value)
             )
-
-
-# Import models.Q for the filter methods
-from django.db import models  # noqa: E402

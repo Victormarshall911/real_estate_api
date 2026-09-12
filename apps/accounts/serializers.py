@@ -12,7 +12,7 @@ User = get_user_model()
 
 
 class UserSerializer(serializers.ModelSerializer):
-    """Read-only serializer for user data."""
+    """Read-only serializer for user data with verified tier badges."""
     full_name = serializers.CharField(read_only=True)
     has_realtor_profile = serializers.SerializerMethodField()
     has_agent_profile = serializers.SerializerMethodField()
@@ -20,6 +20,8 @@ class UserSerializer(serializers.ModelSerializer):
     has_developer_profile = serializers.SerializerMethodField()
     is_fully_verified = serializers.BooleanField(read_only=True)
     profile_photo = serializers.SerializerMethodField()
+    verification_level = serializers.SerializerMethodField()
+    badge_label = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -28,7 +30,8 @@ class UserSerializer(serializers.ModelSerializer):
             'role', 'is_email_verified', 'date_joined',
             'has_realtor_profile', 'has_agent_profile', 'has_landlord_profile', 'has_developer_profile',
             'is_kyc_verified', 'is_profile_complete',
-            'is_fully_verified', 'date_of_birth', 'full_address', 'profile_photo',
+            'is_fully_verified', 'verification_level', 'badge_label',
+            'date_of_birth', 'full_address', 'profile_photo',
         ]
         read_only_fields = fields
 
@@ -46,6 +49,27 @@ class UserSerializer(serializers.ModelSerializer):
 
     def get_profile_photo(self, obj):
         return get_clean_media_url(obj.profile_photo, self.context.get('request'))
+
+    def get_verification_level(self, obj):
+        if hasattr(obj, 'kyc_verification'):
+            kyc = obj.kyc_verification
+            if kyc.status == 'verified':
+                return 'cac_verified' if kyc.verification_type == 'cac_certificate' else 'id_verified'
+        if obj.is_email_verified and getattr(obj, 'phone_number', None):
+            return 'contact_verified'
+        if obj.is_kyc_verified:
+            return 'id_verified'
+        return 'unverified'
+
+    def get_badge_label(self, obj):
+        level = self.get_verification_level(obj)
+        mapping = {
+            'cac_verified': 'CAC Registered Agency',
+            'id_verified': 'Government ID Verified',
+            'contact_verified': 'Contact Verified',
+            'unverified': 'Unverified',
+        }
+        return mapping.get(level, 'Unverified')
 
 
 class UserUpdateSerializer(serializers.ModelSerializer):
@@ -91,7 +115,6 @@ class CompleteProfileSerializer(serializers.ModelSerializer):
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
 
-        # Mark profile as complete if DOB and address are both set or if explicitly set
         dob = validated_data.get('date_of_birth', instance.date_of_birth)
         addr = validated_data.get('full_address', instance.full_address)
         if (dob and addr) or validated_data.get('is_profile_complete'):
@@ -157,3 +180,27 @@ class RegisterSerializer(serializers.ModelSerializer):
 class EmailVerifySerializer(serializers.Serializer):
     """Serializer for email verification token."""
     token = serializers.UUIDField()
+
+
+class LoginSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    password = serializers.CharField(write_only=True)
+
+    def validate(self, attrs):
+        from django.contrib.auth import authenticate
+        email = attrs.get('email')
+        password = attrs.get('password')
+
+        user = authenticate(email=email, password=password)
+        if not user:
+            raise serializers.ValidationError('Invalid email or password.')
+
+        if not user.is_active:
+            raise serializers.ValidationError('This account has been deactivated.')
+
+        refresh = RefreshToken.for_user(user)
+        return {
+            'user': UserSerializer(user, context=self.context).data,
+            'refresh': str(refresh),
+            'access': str(refresh.access_token),
+        }

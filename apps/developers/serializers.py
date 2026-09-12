@@ -18,14 +18,35 @@ class DeveloperReviewSerializer(serializers.ModelSerializer):
 
 class DeveloperUserSerializer(serializers.ModelSerializer):
     profile_photo = serializers.SerializerMethodField()
+    full_name = serializers.CharField(read_only=True)
+    verification_level = serializers.SerializerMethodField()
+    badge_label = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ['id', 'email', 'first_name', 'last_name', 'is_email_verified', 'profile_photo']
+        fields = [
+            'id', 'email', 'first_name', 'last_name', 'full_name',
+            'is_email_verified', 'is_kyc_verified', 'is_fully_verified',
+            'verification_level', 'badge_label', 'profile_photo',
+        ]
         read_only_fields = fields
 
     def get_profile_photo(self, obj):
         return get_clean_media_url(obj.profile_photo, self.context.get('request'))
+
+    def get_verification_level(self, obj):
+        if hasattr(obj, 'kyc_verification'):
+            kyc = obj.kyc_verification
+            if kyc.status == 'verified':
+                return 'cac_verified' if kyc.verification_type == 'cac_certificate' else 'id_verified'
+        if obj.is_kyc_verified:
+            return 'cac_verified'
+        if obj.is_email_verified:
+            return 'contact_verified'
+        return 'unverified'
+
+    def get_badge_label(self, obj):
+        return 'CAC Registered Developer' if self.get_verification_level(obj) == 'cac_verified' else 'Verified'
 
 
 class DeveloperProfileSerializer(serializers.ModelSerializer):
@@ -34,6 +55,7 @@ class DeveloperProfileSerializer(serializers.ModelSerializer):
     formatted_whatsapp_url = serializers.SerializerMethodField()
     average_rating = serializers.SerializerMethodField()
     total_reviews = serializers.SerializerMethodField()
+    is_verified = serializers.SerializerMethodField()
 
     class Meta:
         model = DeveloperProfile
@@ -43,7 +65,10 @@ class DeveloperProfileSerializer(serializers.ModelSerializer):
             'profile_picture_url', 'formatted_whatsapp_url',
             'is_verified', 'created_at', 'updated_at', 'average_rating', 'total_reviews',
         ]
-        read_only_fields = ['id', 'is_verified', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+    def get_is_verified(self, obj):
+        return bool(obj.is_verified or getattr(obj.user, 'is_kyc_verified', False))
 
     def get_profile_picture_url(self, obj):
         return get_clean_media_url(obj.profile_picture, self.context.get('request'))
